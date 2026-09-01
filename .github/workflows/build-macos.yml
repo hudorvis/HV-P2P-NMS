@@ -1,0 +1,89 @@
+name: Build macOS Intel + Apple Silicon
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Backend regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install test dependencies
+        run: python -m pip install 'pytest>=8,<10'
+      - name: Compile source
+        run: python -m compileall -q src tests run_hv_nms.py
+      - name: Run backend tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: python -m pytest tests -q
+
+  build-macos:
+    name: macOS ${{ matrix.label }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Apple Silicon
+            runner: macos-26
+            arch: arm64
+            artifact: HV-P2P-NMS-macOS-Apple-Silicon
+          - label: Intel
+            runner: macos-26-intel
+            arch: x86_64
+            artifact: HV-P2P-NMS-macOS-Intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Verify runner architecture
+        shell: bash
+        run: |
+          set -euxo pipefail
+          actual="$(python -c 'import platform; print(platform.machine())')"
+          echo "Runner architecture: $actual"
+          test "$actual" = "${{ matrix.arch }}"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Import UI and run backend tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          python -m compileall -q src tests run_hv_nms.py
+          python -c "import PySide6; from hv_nms.main_window import MainWindow; print('PySide6/UI import PASS')"
+          python -m pytest tests -q
+
+      - name: Create macOS icon
+        run: bash scripts/make_icns.sh
+
+      - name: Build app, verify architecture, create ZIP and DMG
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: bash scripts/build_macos.sh
+
+      - name: Upload compiled macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
