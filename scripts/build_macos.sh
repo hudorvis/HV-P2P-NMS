@@ -10,7 +10,7 @@ case "$TARGET_ARCH" in
   *) echo "Unsupported TARGET_ARCH=$TARGET_ARCH"; exit 2 ;;
 esac
 
-VERSION="v26.09.02.04"
+VERSION="v26.09.02.05"
 export MACOSX_DEPLOYMENT_TARGET="13.0"
 rm -rf build dist release
 mkdir -p release

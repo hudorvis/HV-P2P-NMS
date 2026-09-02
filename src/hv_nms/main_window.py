@@ -563,8 +563,18 @@ class MainWindow(QMainWindow):
             self.interface_combo.blockSignals(True); self.interface_combo.clear()
             for interface in self.interfaces: self.interface_combo.addItem(interface.label, interface)
             chosen=0
-            for i,interface in enumerate(self.interfaces):
-                if interface.name==self.settings.selected_interface_name or (self.settings.selected_interface_ip and interface.ip==self.settings.selected_interface_ip): chosen=i; break
+            # Prefer the exact saved interface name. Default Route and the
+            # underlying physical NIC intentionally share an IP, so matching
+            # IP first would make a saved en0/en7 choice appear as Default
+            # Route after every restart. Fall back to IP only if the named
+            # interface is no longer present.
+            exact = next((i for i, interface in enumerate(self.interfaces) if interface.name == self.settings.selected_interface_name), None)
+            if exact is not None:
+                chosen = exact
+            elif self.settings.selected_interface_ip:
+                fallback = next((i for i, interface in enumerate(self.interfaces) if interface.ip == self.settings.selected_interface_ip), None)
+                if fallback is not None:
+                    chosen = fallback
             self.interface_combo.setCurrentIndex(chosen); self.interface_combo.blockSignals(False)
 
     def _load_controls_from_settings(self) -> None:

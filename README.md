@@ -1,4 +1,4 @@
-# HV P2P NMS v26.09.02.04
+# HV P2P NMS v26.09.02.05
 
 GitHub-ready source for the redesigned HV P2P Network Management System.
 
@@ -54,8 +54,13 @@ The Scan Mode worker belongs to the application backend, not the Run page, so an
 
 Three favourite devices are persistent. Select a device on Run and use `Assign to Favourite 1 / 2 / 3`. Each header tile is restricted to the approved fields: health dot, Device, IP Address, Latency and compact latency trend.
 
-`nmap` is optional. Discovery streams cached ARP and successful ping results first, resolves hostnames asynchronously, and runs optional nmap work without blocking the first visible devices. Without nmap, ping/ARP discovery still works.
-Resolver failures such as `NXDOMAIN`, `SERVFAIL` and `REFUSED` are treated as lookup failures and are never displayed as device or host names.
+`nmap` is optional. Discovery streams cached ARP and successful ping results first and never waits for name resolution before showing a device. Name discovery now combines the hostname exposed by the operating-system `ping` resolver, human-readable ARP entries, conventional reverse DNS, active mDNS reverse lookup, Bonjour/DNS-SD service browsing, direct NetBIOS node-status lookup, optional nmap reverse resolution, and optional command-line resolver helpers. Finder-launched macOS apps also search the standard Homebrew/MacPorts locations so an installed `nmap` is not lost just because the GUI process has a minimal `PATH`.
+
+Bonjour/DNS-SD service instances are used as the friendly **Device** label when available, while the service's SRV target is used as the **Host Name**. This is intentionally separate: a device can advertise a friendly name even when its conventional DNS PTR record is empty. Resolver failures such as `NXDOMAIN`, `SERVFAIL` and `REFUSED` are treated as lookup failures and are never displayed as device or host names. Unnamed hosts are retried during later discovery passes after the ARP/mDNS caches have had time to populate.
+
+On macOS, the app bundle declares `NSLocalNetworkUsageDescription` and Bonjour usage. On first use, allow **HV P2P NMS** access to the local network when macOS asks. If access was previously denied, enable it in **System Settings → Privacy & Security → Local Network**. The discovery code retries, because macOS can reject the first local-network operation while the permission prompt is still awaiting a response.
+
+There is no standards-compliant way to derive a hostname from an IP address when a device publishes no DNS PTR/mDNS/Bonjour/NetBIOS identity. In that case NMS deliberately leaves Host Name as `—` instead of inventing a value.
 
 Application configuration is stored outside the `.app` bundle under:
 

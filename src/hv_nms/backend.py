@@ -9,7 +9,11 @@ from pathlib import Path
 from .config import save_config
 from .constants import DISCOVERY_WORKERS, SCAN_MODE_ONE_BY_ONE
 from .models import AppSettings, DeviceRecord, EventRecord
-from .network import ArpEntry, discovery_targets, nmap_discover, normalize_hostname, ping_once, read_arp_entries, resolve_hostname
+from .network import (
+    ArpEntry, NetworkIdentity, discovery_targets, mdns_discover_identities,
+    nmap_discover, normalize_device_name, normalize_hostname, ping_once, ping_probe,
+    read_arp_entries, resolve_hostname,
+)
 
 
 class MonitorBackend:
@@ -42,8 +46,9 @@ class MonitorBackend:
         self._save_lock = threading.Lock()
         self._inflight: set[str] = set()
         self._name_inflight: set[tuple[int, str]] = set()
-        self._name_attempted: set[tuple[int, str]] = set()
+        self._name_attempted: dict[tuple[int, str], float] = {}
         self._nmap_inflight: set[int] = set()
+        self._mdns_inflight: set[int] = set()
         self._one_by_one_index = 0
         self._scan_generation = 0
         self._discovery_generation = 0
@@ -296,6 +301,7 @@ class MonitorBackend:
             self._name_inflight.clear()
             self._name_attempted.clear()
             self._nmap_inflight.clear()
+            self._mdns_inflight.clear()
         self.events.put(("discovery_state", True))
         self.events.put(("discovery_list",))
         self.log(
@@ -338,7 +344,7 @@ class MonitorBackend:
 
     @staticmethod
     def _source_rank(source: str) -> int:
-        return {"arp": 1, "nmap": 2, "ping": 3}.get(source, 0)
+        return {"arp": 1, "mdns": 2, "bonjour": 2, "nmap": 2, "ping": 3}.get(source, 0)
 
     def _upsert_discovery(
         self,
@@ -380,11 +386,19 @@ class MonitorBackend:
             self._apply_hostname(generation, ip, hint)
             return
         key = (generation, ip)
+        now = time.monotonic()
         with self._lock:
-            if key in self._name_inflight or key in self._name_attempted or generation != self._discovery_generation:
+            current = next((d for d in self.discovery_devices if d.ip == ip), None)
+            if current is not None and current.hostname:
+                return
+            last_attempt = self._name_attempted.get(key, 0.0)
+            # A name lookup performed before ARP/mDNS caches have warmed can
+            # legitimately return nothing. Retry unnamed hosts periodically
+            # instead of permanently suppressing all later attempts.
+            if key in self._name_inflight or now - last_attempt < 5.0 or generation != self._discovery_generation:
                 return
             self._name_inflight.add(key)
-            self._name_attempted.add(key)
+            self._name_attempted[key] = now
         future = self._name_pool.submit(resolve_hostname, ip, hint)
         future.add_done_callback(lambda f, gen=generation, address=ip, k=key: self._hostname_done(gen, address, k, f))
 
@@ -453,6 +467,42 @@ class MonitorBackend:
             self._upsert_discovery(generation, ip, source="nmap", hostname=hostname)
             self._schedule_hostname(generation, ip, hostname)
 
+    def _mdns_done(self, generation: int, future: Future) -> None:
+        with self._lock:
+            self._mdns_inflight.discard(generation)
+        if self._discovery_cancelled(generation):
+            return
+        try:
+            identities = future.result() or {}
+        except Exception:
+            identities = {}
+        for ip, identity in identities.items():
+            if self._discovery_cancelled(generation):
+                return
+            if not isinstance(identity, NetworkIdentity):
+                continue
+            current, _ = self._upsert_discovery(
+                generation, ip, source=identity.source or "mdns", hostname=identity.hostname
+            )
+            if current is None:
+                continue
+            friendly = normalize_device_name(identity.device_name)
+            changed = False
+            with self._lock:
+                live = next((d for d in self.discovery_devices if d.device_id == current.device_id), None)
+                if live is None:
+                    continue
+                if identity.hostname and live.hostname != normalize_hostname(identity.hostname):
+                    live.hostname = normalize_hostname(identity.hostname)
+                    changed = True
+                if friendly and (not live.name or live.name == live.ip or live.name == live.hostname.split(".")[0]):
+                    if live.name != friendly:
+                        live.name = friendly
+                        changed = True
+            if changed:
+                self.events.put(("discovery_update", current.device_id))
+                self.log("INFO", "DISCOVERY", f"Network identity: {ip} = {friendly or identity.hostname}")
+
     def _discovery_loop(self, generation: int) -> None:
         try:
             while not self._discovery_cancelled(generation):
@@ -489,9 +539,26 @@ class MonitorBackend:
                         )
                         nmap_future.add_done_callback(lambda f, gen=generation: self._nmap_done(gen, f))
 
+                    # Active mDNS/DNS-SD identity discovery runs in parallel
+                    # with nmap and ping. This is what supplies friendly Device
+                    # and Host Name values on LANs that have no DNS PTR zone.
+                    with self._lock:
+                        start_mdns = generation not in self._mdns_inflight
+                        if start_mdns:
+                            self._mdns_inflight.add(generation)
+                        interface_ip = self.settings.selected_interface_ip
+                    if start_mdns:
+                        mdns_future = self._aux_pool.submit(
+                            mdns_discover_identities,
+                            target_set,
+                            interface_ip,
+                            cancelled=lambda gen=generation: self._discovery_cancelled(gen),
+                        )
+                        mdns_future.add_done_callback(lambda f, gen=generation: self._mdns_done(gen, f))
+
                     # 3) Stream each successful ping as soon as it completes.
                     timeout_ms = self.settings.ping_timeout_ms
-                    futures = {self._discovery_pool.submit(ping_once, ip, timeout_ms): ip for ip in targets}
+                    futures = {self._discovery_pool.submit(ping_probe, ip, timeout_ms): ip for ip in targets}
                     last_arp_poll = time.monotonic()
                     completed = 0
                     cancelled = False
@@ -502,13 +569,15 @@ class MonitorBackend:
                         ip = futures[future]
                         completed += 1
                         try:
-                            latency = future.result()
+                            latency, ping_hostname = future.result()
                         except Exception:
-                            latency = None
+                            latency, ping_hostname = None, ""
                         if latency is not None:
                             seen_this_pass.add(ip)
-                            self._upsert_discovery(generation, ip, source="ping", latency=latency)
-                            self._schedule_hostname(generation, ip)
+                            self._upsert_discovery(
+                                generation, ip, source="ping", latency=latency, hostname=ping_hostname
+                            )
+                            self._schedule_hostname(generation, ip, ping_hostname)
 
                         # Ping to a same-subnet host has already triggered ARP,
                         # even when that host blocks ICMP. Poll ARP periodically
@@ -535,9 +604,9 @@ class MonitorBackend:
                 # running, defer that transition to avoid a red/unknown flicker
                 # for devices that intentionally block both ICMP and ARP probes.
                 with self._lock:
-                    nmap_pending = generation in self._nmap_inflight
+                    identity_pending = generation in self._nmap_inflight or generation in self._mdns_inflight
                     changed_ids: list[str] = []
-                    if not nmap_pending:
+                    if not identity_pending:
                         for current in self.discovery_devices:
                             if current.ip in target_set and current.ip not in seen_this_pass and current.discovery_source != "nmap":
                                 if current.last_seen_status != "fail":

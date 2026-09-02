@@ -86,7 +86,7 @@ def test_arp_parser_preserves_hostname_and_mac(monkeypatch):
     monkeypatch.setattr(network_module.shutil, "which", lambda _cmd: "/usr/sbin/arp")
 
     def fake_run(cmd, **_kwargs):
-        if cmd == ["arp", "-a"]:
+        if cmd[-1] == "-a":
             return SimpleNamespace(stdout="camera-3.local (172.20.1.82) at aa:bb:cc:dd:ee:ff on en0 ifscope [ethernet]\n")
         return SimpleNamespace(stdout="? (172.20.1.82) at aa:bb:cc:dd:ee:ff on en0 ifscope [ethernet]\n")
 
@@ -304,7 +304,7 @@ def test_discovery_streams_ping_result_before_slow_nmap_finishes(tmp_path, monke
         nmap_finished.set()
         return {}
 
-    monkeypatch.setattr(backend_module, "ping_once", fake_ping)
+    monkeypatch.setattr(backend_module, "ping_probe", lambda ip, timeout: (fake_ping(ip, timeout), ""))
     monkeypatch.setattr(backend_module, "nmap_discover", fake_nmap)
     monkeypatch.setattr(backend_module, "read_arp_entries", lambda _targets=None: {})
     monkeypatch.setattr(backend_module, "resolve_hostname", lambda _ip, _hint="": "")
@@ -327,7 +327,7 @@ def test_discovery_hostname_populates_asynchronously_after_row_appears(tmp_path,
     )
     backend = MonitorBackend(settings, [], tmp_path / "config.json")
 
-    monkeypatch.setattr(backend_module, "ping_once", lambda _ip, _timeout: 2.0)
+    monkeypatch.setattr(backend_module, "ping_probe", lambda _ip, _timeout: (2.0, ""))
     monkeypatch.setattr(backend_module, "read_arp_entries", lambda _targets=None: {})
     monkeypatch.setattr(backend_module, "nmap_discover", lambda _targets, _cancelled=None: {})
 
@@ -371,3 +371,113 @@ def test_design_lock_neutral_palette_matches_srvr_reference():
     assert PANEL_BG.upper() == "#171D20"
     assert PANEL_BG_2.upper() == "#161C20"
     assert WINDOW_BG.upper() == "#0F1316"
+
+
+def test_mdns_service_census_maps_friendly_device_and_hostname(monkeypatch):
+    def fake_query(questions, *, local_ip="", timeout=0.7):
+        names = {name.rstrip(".").lower(): qtype for name, qtype in questions}
+        if "_services._dns-sd._udp.local" in names:
+            return [network_module._DnsRecord("_services._dns-sd._udp.local.", 12, "_http._tcp.local.")]
+        if "_http._tcp.local" in names:
+            return [network_module._DnsRecord("_http._tcp.local.", 12, "Camera 3._http._tcp.local.")]
+        if "camera 3._http._tcp.local" in names:
+            return [
+                network_module._DnsRecord("camera 3._HTTP._TCP.LOCAL.", 33, (0, 0, 80, "camera-3.local.")),
+                network_module._DnsRecord("camera-3.local.", 1, "10.0.0.8"),
+            ]
+        return []
+
+    monkeypatch.setattr(network_module, "_mdns_query", fake_query)
+    result = network_module.mdns_discover_identities({"10.0.0.8"}, "10.0.0.2")
+    assert result["10.0.0.8"].hostname == "camera-3.local"
+    assert result["10.0.0.8"].device_name == "Camera 3"
+    assert result["10.0.0.8"].source == "bonjour"
+
+
+def test_mdns_reverse_ptr_can_supply_hostname_without_service(monkeypatch):
+    def fake_query(questions, *, local_ip="", timeout=0.7):
+        if any(name.rstrip(".").lower() == "8.0.0.10.in-addr.arpa" for name, _ in questions):
+            return [network_module._DnsRecord("8.0.0.10.in-addr.arpa.", 12, "panel.local.")]
+        return []
+
+    monkeypatch.setattr(network_module, "_mdns_query", fake_query)
+    result = network_module.mdns_discover_identities({"10.0.0.8"}, "10.0.0.2")
+    assert result["10.0.0.8"].hostname == "panel.local"
+    assert result["10.0.0.8"].device_name == "panel"
+
+
+def test_backend_mdns_identity_updates_device_and_hostname(tmp_path):
+    backend = MonitorBackend(AppSettings(), [], tmp_path / "config.json")
+    backend.discovery_active = True
+    backend._discovery_generation = 4
+    backend._upsert_discovery(4, "10.0.0.8", source="ping", latency=1.0)
+    backend._mdns_inflight.add(4)
+    backend._mdns_done(
+        4,
+        future_with({"10.0.0.8": network_module.NetworkIdentity("camera-3.local", "Camera 3", "bonjour")}),
+    )
+    device = backend.discovery_snapshot()[0]
+    assert device.hostname == "camera-3.local"
+    assert device.name == "Camera 3"
+    backend.stop_discovery()
+    backend.shutdown()
+
+
+def test_dns_parser_handles_compressed_mdns_ptr_answer():
+    import struct
+
+    qname = network_module._dns_encode_name("_http._tcp.local.")
+    question = qname + struct.pack("!HH", 12, 1)
+    rdata = b"\x06Camera\xc0\x0c"
+    answer = b"\xc0\x0c" + struct.pack("!HHIH", 12, 1, 120, len(rdata)) + rdata
+    packet = struct.pack("!HHHHHH", 0, 0x8400, 1, 1, 0, 0) + question + answer
+    records = network_module._dns_parse_records(packet)
+    assert len(records) == 1
+    assert records[0].name == "_http._tcp.local."
+    assert records[0].value == "Camera._http._tcp.local."
+
+
+def test_ping_probe_reuses_ping_banner_hostname(monkeypatch):
+    monkeypatch.setattr(network_module, "_find_executable", lambda name: f"/sbin/{name}")
+    monkeypatch.setattr(network_module.platform, "system", lambda: "Darwin")
+
+    def fake_run(cmd, **_kwargs):
+        return SimpleNamespace(
+            returncode=0,
+            stdout="PING camera-3.local (172.20.1.82): 56 data bytes\n64 bytes from 172.20.1.82: icmp_seq=0 ttl=64 time=1.250 ms\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(network_module.subprocess, "run", fake_run)
+    latency, hostname = network_module.ping_probe("172.20.1.82", 1000)
+    assert latency == 1.25
+    assert hostname == "camera-3.local"
+
+
+def test_netbios_node_status_fallback_returns_workstation_name(monkeypatch):
+    import struct
+
+    class FakeSocket:
+        def __init__(self, *_args, **_kwargs):
+            self.sent = b""
+
+        def settimeout(self, _timeout):
+            pass
+
+        def sendto(self, packet, _addr):
+            self.sent = packet
+
+        def recvfrom(self, _size):
+            ident = struct.unpack("!H", self.sent[:2])[0]
+            question = self.sent[12:]
+            name = b"CAMERA" + b" " * 9
+            rdata = bytes([1]) + name + b"\x00" + struct.pack("!H", 0) + b"\x00" * 6
+            answer = b"\xc0\x0c" + struct.pack("!HHIH", 0x21, 1, 0, len(rdata)) + rdata
+            response = struct.pack("!HHHHHH", ident, 0x8500, 1, 1, 0, 0) + question + answer
+            return response, ("10.0.0.8", 137)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(network_module.socket, "socket", FakeSocket)
+    assert network_module.netbios_node_name("10.0.0.8") == "CAMERA"

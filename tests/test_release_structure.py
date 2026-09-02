@@ -9,12 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_release_version_is_consistent_across_build_files():
-    assert APP_VERSION == "v26.09.02.04"
-    assert 'APP_VERSION = "v26.09.02.04"' in (ROOT / "src/hv_nms/__init__.py").read_text()
-    assert 'VERSION="v26.09.02.04"' in (ROOT / "scripts/build_macos.sh").read_text()
+    assert APP_VERSION == "v26.09.02.05"
+    assert 'APP_VERSION = "v26.09.02.05"' in (ROOT / "src/hv_nms/__init__.py").read_text()
+    assert 'VERSION="v26.09.02.05"' in (ROOT / "scripts/build_macos.sh").read_text()
     spec = (ROOT / "HV_P2P_NMS.spec").read_text()
-    assert '"CFBundleShortVersionString": "26.09.02.04"' in spec
-    assert '"CFBundleVersion": "26.09.02.04"' in spec
+    assert '"CFBundleShortVersionString": "26.09.02.05"' in spec
+    assert '"CFBundleVersion": "26.09.02.05"' in spec
 
 
 def test_workflow_builds_native_apple_silicon_and_intel():
@@ -63,3 +63,25 @@ def test_header_favourites_and_status_strip_design_contract_remain_present():
     assert "Network Monitor |" in source
     assert "GREEN_BORDER" in source
     assert "RED_BORDER" in source
+
+
+def test_macos_bundle_declares_local_network_privacy_for_discovery():
+    spec = (ROOT / "HV_P2P_NMS.spec").read_text()
+    assert '"NSLocalNetworkUsageDescription"' in spec
+    assert '"_services._dns-sd._udp"' in spec
+
+
+def test_source_manifest_matches_release_tree():
+    ignored_dirs = {'.pytest_cache', '__pycache__', 'build', 'dist', 'release'}
+    actual = set()
+    for path in ROOT.rglob('*'):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ROOT)
+        if any(part in ignored_dirs for part in rel.parts):
+            continue
+        if path.suffix in {'.pyc', '.pyo'} or path.name == '.DS_Store':
+            continue
+        actual.add(rel.as_posix())
+    manifest = {line.strip() for line in (ROOT / 'SOURCE_MANIFEST.txt').read_text().splitlines() if line.strip()}
+    assert actual == manifest

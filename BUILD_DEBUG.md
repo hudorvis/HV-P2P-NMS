@@ -1,4 +1,4 @@
-# GitHub Actions build debug — v26.09.02.04
+# GitHub Actions build debug — v26.09.02.05
 
 The first `v26.09.01.04` GitHub run produced a valid Intel artifact, while the Apple Silicon job never executed a workflow step. GitHub reported:
 
@@ -18,3 +18,8 @@ The CI hardening introduced after that failure and retained in this revision is:
 Later NMS revisions also improve Discovery responsiveness/hostname resolution and simplify Setup, but those application changes are independent of the hosted-runner acquisition failure described above.
 
 If GitHub again reports a hosted-runner acquisition error and there are no step logs, re-run the failed job. That class of failure is upstream of the repository and cannot be retried from inside a job because no runner has started executing the workflow yet.
+
+
+## v26.09.02.05 discovery identity hardening
+
+The v26.09.02.04 build correctly stopped displaying resolver errors such as `NXDOMAIN`, but a production LAN with no conventional reverse-DNS PTR records could still show IP-only Discovery rows. v26.09.02.05 keeps the fast ping/ARP stream and adds independent identity sources: ping-banner resolution, active mDNS reverse PTRs, Bonjour/DNS-SD service instance + SRV/A resolution, direct NetBIOS NBSTAT, repeat lookup attempts after cache warm-up, and explicit Homebrew/MacPorts executable lookup for GUI-launched macOS apps. The macOS bundle also now declares Local Network privacy usage so Bonjour/mDNS access can be granted by the user.
