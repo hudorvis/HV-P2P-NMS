@@ -57,8 +57,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "HV P2P NMS",
         "CFBundleName": "HV P2P NMS",
-        "CFBundleShortVersionString": "26.09.02.05",
-        "CFBundleVersion": "26.09.02.05",
+        "CFBundleShortVersionString": "26.09.03.01",
+        "CFBundleVersion": "26.09.03.01",
         "LSMinimumSystemVersion": "13.0",
         "NSHighResolutionCapable": True,
         "NSPrincipalClass": "NSApplication",

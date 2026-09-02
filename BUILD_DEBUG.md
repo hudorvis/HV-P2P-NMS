@@ -1,4 +1,8 @@
-# GitHub Actions build debug — v26.09.02.05
+# GitHub Actions build debug — v26.09.03.01
+## v26.09.03.01 CI manifest fix
+
+GitHub Actions checks the repository out with a `.git/` metadata directory. The release-manifest regression test previously walked the entire repository root but did not exclude `.git/`, so it passed in the clean release ZIP yet failed on every normal GitHub checkout by treating Git internals as unexpected release files. The test now explicitly excludes `.git/` while continuing to compare every real release file against `SOURCE_MANIFEST.txt`. No application runtime, discovery, UI, or build-architecture behaviour was changed by this fix.
+
 
 The first `v26.09.01.04` GitHub run produced a valid Intel artifact, while the Apple Silicon job never executed a workflow step. GitHub reported:
 
@@ -20,6 +24,6 @@ Later NMS revisions also improve Discovery responsiveness/hostname resolution an
 If GitHub again reports a hosted-runner acquisition error and there are no step logs, re-run the failed job. That class of failure is upstream of the repository and cannot be retried from inside a job because no runner has started executing the workflow yet.
 
 
-## v26.09.02.05 discovery identity hardening
+## v26.09.03.01 discovery identity hardening
 
 The v26.09.02.04 build correctly stopped displaying resolver errors such as `NXDOMAIN`, but a production LAN with no conventional reverse-DNS PTR records could still show IP-only Discovery rows. v26.09.02.05 keeps the fast ping/ARP stream and adds independent identity sources: ping-banner resolution, active mDNS reverse PTRs, Bonjour/DNS-SD service instance + SRV/A resolution, direct NetBIOS NBSTAT, repeat lookup attempts after cache warm-up, and explicit Homebrew/MacPorts executable lookup for GUI-launched macOS apps. The macOS bundle also now declares Local Network privacy usage so Bonjour/mDNS access can be granted by the user.

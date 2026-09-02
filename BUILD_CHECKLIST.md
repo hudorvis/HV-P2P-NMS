@@ -1,4 +1,4 @@
-# Release checklist — v26.09.02.05
+# Release checklist — v26.09.03.01
 
 - [x] Legacy Python source reviewed and core monitoring/discovery/config behaviour mapped.
 - [x] Stable device IDs used instead of row-index result routing.
@@ -26,5 +26,6 @@
 - [x] Setup sidebar navigation removed; all settings remain on one consolidated page.
 - [x] Stale in-flight ping results are rejected after IP/config changes.
 - [x] Backend/release regression suite passes locally: 39/39 tests.
+- [x] SOURCE_MANIFEST regression test excludes Git checkout metadata (`.git/`) and passes inside a simulated Git repository.
 
 - [x] DNS resolver status strings (including NXDOMAIN/SERVFAIL/REFUSED) are rejected at parser, resolver and model-write boundaries.

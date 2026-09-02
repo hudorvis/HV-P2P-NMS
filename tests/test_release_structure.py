@@ -9,12 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_release_version_is_consistent_across_build_files():
-    assert APP_VERSION == "v26.09.02.05"
-    assert 'APP_VERSION = "v26.09.02.05"' in (ROOT / "src/hv_nms/__init__.py").read_text()
-    assert 'VERSION="v26.09.02.05"' in (ROOT / "scripts/build_macos.sh").read_text()
+    assert APP_VERSION == "v26.09.03.01"
+    assert 'APP_VERSION = "v26.09.03.01"' in (ROOT / "src/hv_nms/__init__.py").read_text()
+    assert 'VERSION="v26.09.03.01"' in (ROOT / "scripts/build_macos.sh").read_text()
     spec = (ROOT / "HV_P2P_NMS.spec").read_text()
-    assert '"CFBundleShortVersionString": "26.09.02.05"' in spec
-    assert '"CFBundleVersion": "26.09.02.05"' in spec
+    assert '"CFBundleShortVersionString": "26.09.03.01"' in spec
+    assert '"CFBundleVersion": "26.09.03.01"' in spec
 
 
 def test_workflow_builds_native_apple_silicon_and_intel():
@@ -72,7 +72,7 @@ def test_macos_bundle_declares_local_network_privacy_for_discovery():
 
 
 def test_source_manifest_matches_release_tree():
-    ignored_dirs = {'.pytest_cache', '__pycache__', 'build', 'dist', 'release'}
+    ignored_dirs = {'.git', '.pytest_cache', '__pycache__', 'build', 'dist', 'release'}
     actual = set()
     for path in ROOT.rglob('*'):
         if not path.is_file():
