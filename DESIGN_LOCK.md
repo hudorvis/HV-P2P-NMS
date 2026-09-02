@@ -1,4 +1,4 @@
-# HV P2P NMS design lock — v26.09.02.01
+# HV P2P NMS design lock — v26.09.02.03
 
 The files in `design-reference/` are the locked visual references for this build. Do not redesign, reflow, recolour or substitute SRVR content unless a future change request explicitly asks for it.
 
@@ -12,9 +12,10 @@ The files in `design-reference/` are the locked visual references for this build
 - The global Network Monitor strip is green when Scan Mode is active and red when Scan Mode is inactive. On non-Run pages it explicitly says when Scan Mode is active in the background.
 - Discovery can run at the same time as background Scan Mode.
 - The Run-page Event Log is its own layout region and must never overlap or be clipped by the Tools sidebar.
+- Approved Setup exception: the left General / Network / Scan / Discovery / Threshold / Config navigation column is removed. All existing Setup controls remain together on the single settings page; no other Setup redesign is approved.
 
 ## Locked theme
 
 The neutral palette was sampled from the supplied SRVR reference rather than approximated from the earlier NMS concept. Primary panel grey is `#171D20`; surrounding background is `#0F1316`; secondary grey is `#161C20`. Cyan/green/red are reserved for headings and state/health information.
 
-The compiled version string is `v26.09.02.01`; the design-reference images contain earlier concept version labels and are references for layout/appearance only.
+The compiled version string is `v26.09.02.03`; the design-reference images contain earlier concept version labels and are references for layout/appearance only.

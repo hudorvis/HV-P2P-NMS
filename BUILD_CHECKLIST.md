@@ -1,4 +1,4 @@
-# Release checklist — v26.09.02.01
+# Release checklist — v26.09.02.03
 
 - [x] Legacy Python source reviewed and core monitoring/discovery/config behaviour mapped.
 - [x] Stable device IDs used instead of row-index result routing.
@@ -14,4 +14,9 @@
 - [x] Theme constants centralised and neutral greys sampled from SRVR reference.
 - [x] Intel and Apple Silicon GitHub runner jobs are explicit and architecture-checked.
 - [x] Compiled executable self-test is run before artifacts are uploaded.
-- [x] Backend regression tests pass locally in the supplied source environment.
+- [x] Discovery streams early ARP/ping results instead of waiting for optional nmap.
+- [x] Hostname resolution runs asynchronously and can update a discovered row after first display.
+- [x] Discovery target limits are enforced before allocating large address ranges.
+- [x] Setup sidebar navigation removed; all settings remain on one consolidated page.
+- [x] Stale in-flight ping results are rejected after IP/config changes.
+- [x] Backend/release regression suite passes locally: 29/29 tests.

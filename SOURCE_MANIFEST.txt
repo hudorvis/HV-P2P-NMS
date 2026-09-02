@@ -29,3 +29,4 @@ src/hv_nms/models.py
 src/hv_nms/network.py
 src/hv_nms/widgets.py
 tests/test_backend.py
+tests/test_release_structure.py

@@ -5,7 +5,12 @@ import sys
 
 
 def self_test() -> int:
+    # Import the actual Qt UI modules as part of the packaged self-test. This
+    # catches missing PySide6/Qt bundle content that a backend-only self-test
+    # would not detect. No QApplication/window is created.
+    import PySide6
     from .constants import APP_VERSION
+    from .main_window import MainWindow  # noqa: F401
     from .models import AppSettings, DeviceRecord
     from .network import discovery_targets
 
@@ -15,7 +20,7 @@ def self_test() -> int:
     targets = discovery_targets("172.20.1.1", "172.20.1.3", "255.255.255.0")
     assert targets == ["172.20.1.1", "172.20.1.2", "172.20.1.3"]
     assert settings.normalised_favourites() == [None, None, None]
-    print(f"HV P2P NMS {APP_VERSION} self-test PASS ({platform.machine()})")
+    print(f"HV P2P NMS {APP_VERSION} self-test PASS ({platform.machine()}, PySide6 {PySide6.__version__})")
     return 0
 
 

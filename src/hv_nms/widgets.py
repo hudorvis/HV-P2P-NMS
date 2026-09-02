@@ -79,7 +79,12 @@ class HistoryGraph(QWidget):
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        r = self.rect().adjusted(48, 16, -14, -28)
+        r = self.rect().adjusted(54, 16, -14, -28)
+
+        points = self.device.history_points(self.window_seconds) if self.device else []
+        valid = [(ts, v) for ts, v in points if isinstance(v, (int, float))]
+        max_y = max(100.0, max((float(v) for _, v in valid), default=0.0) * 1.15)
+
         p.setPen(QPen(QColor("#283236"), 1))
         for i in range(5):
             y = r.top() + int(i * r.height() / 4)
@@ -87,20 +92,20 @@ class HistoryGraph(QWidget):
         for i in range(7):
             x = r.left() + int(i * r.width() / 6)
             p.drawLine(x, r.top(), x, r.bottom())
+
         p.setPen(QColor(MUTED))
-        p.drawText(4, r.top() + 4, "100 ms")
-        p.drawText(10, r.center().y() + 4, "50 ms")
+        p.drawText(4, r.top() + 4, f"{max_y:.0f} ms")
+        p.drawText(10, r.center().y() + 4, f"{max_y / 2:.0f} ms")
         p.drawText(18, r.bottom() + 4, "0 ms")
+
         if not self.device:
             p.drawText(r, Qt.AlignmentFlag.AlignCenter, "Select a device")
             return
-        points = self.device.history_points(self.window_seconds)
-        valid = [(ts, v) for ts, v in points if isinstance(v, (int, float))]
         if not valid:
             p.setPen(QPen(QColor(RED), 2))
             p.drawLine(r.left(), r.bottom(), r.right(), r.bottom())
             return
-        max_y = max(100.0, max(float(v) for _, v in valid) * 1.15)
+
         cutoff = time.time() - self.window_seconds
         p.setPen(QPen(QColor(GREEN), 2))
         last = None
@@ -108,7 +113,8 @@ class HistoryGraph(QWidget):
             if val is None:
                 last = None
                 continue
-            x = r.left() + ((ts - cutoff) / self.window_seconds) * r.width()
+            x_ratio = min(1.0, max(0.0, (ts - cutoff) / self.window_seconds))
+            x = r.left() + x_ratio * r.width()
             y = r.bottom() - (min(float(val), max_y) / max_y) * r.height()
             if last:
                 p.drawLine(int(last[0]), int(last[1]), int(x), int(y))

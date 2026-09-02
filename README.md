@@ -1,4 +1,4 @@
-# HV P2P NMS v26.09.02.01
+# HV P2P NMS v26.09.02.03
 
 GitHub-ready source for the redesigned HV P2P Network Management System.
 
@@ -7,7 +7,7 @@ This revision rebuilds the supplied legacy NMS logic into a PySide6 desktop appl
 - **Apple Silicon / arm64** on GitHub's `macos-15` runner.
 - **Intel / x86_64** on GitHub's `macos-15-intel` runner.
 
-The current PySide6 macOS wheel is Universal2 and requires macOS 13 or later, so the application bundle is intentionally configured with `LSMinimumSystemVersion = 13.0`. See `BUILD_DEBUG.md` for the v26.09.01.04 hosted-runner scheduling failure and the CI-only changes in this revision.
+The current PySide6 macOS wheel is Universal2 and requires macOS 13 or later, so the application bundle is intentionally configured with `LSMinimumSystemVersion = 13.0`. See `BUILD_DEBUG.md` for the earlier v26.09.01.04 hosted-runner scheduling failure and the macOS CI hardening retained in this revision.
 
 ## What GitHub Actions produces
 
@@ -54,7 +54,7 @@ The Scan Mode worker belongs to the application backend, not the Run page, so an
 
 Three favourite devices are persistent. Select a device on Run and use `Assign to Favourite 1 / 2 / 3`. Each header tile is restricted to the approved fields: health dot, Device, IP Address, Latency and compact latency trend.
 
-`nmap` is optional. If it exists on the user's Mac, Discovery uses it in addition to ping and ARP; without it, ping/ARP discovery still works.
+`nmap` is optional. Discovery streams cached ARP and successful ping results first, resolves hostnames asynchronously, and runs optional nmap work without blocking the first visible devices. Without nmap, ping/ARP discovery still works.
 
 Application configuration is stored outside the `.app` bundle under:
 
@@ -65,6 +65,10 @@ The app can still load/export JSON configuration files from arbitrary locations.
 ## Signing / Gatekeeper
 
 The GitHub workflow produces an ad-hoc signed application, which is sufficient for architecture and bundle-integrity testing. It is **not Apple Developer ID notarization**. For unrestricted external distribution through Gatekeeper, add Developer ID signing and Apple notarization credentials as a later release step. No certificate or secret is embedded in this repository.
+
+## Setup
+
+The Setup page intentionally uses one consolidated settings page. The former General / Network / Scan / Discovery / Threshold / Config sidebar navigation was removed because all controls fit cleanly on one screen.
 
 ## Design lock
 

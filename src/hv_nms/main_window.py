@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import ipaddress
 import json
+import queue
 import time
 from pathlib import Path
 
@@ -61,7 +62,7 @@ from .constants import (
     WINDOW_BG,
 )
 from .models import DeviceRecord, EventRecord, find_device
-from .network import NetworkInterface, scan_interfaces
+from .network import NetworkInterface, interface_discovery_range, scan_interfaces
 from .widgets import FavouriteTile, HistoryGraph, SectionTitle, Sparkline, StatusDot
 
 
@@ -100,8 +101,10 @@ class Panel(QFrame):
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(14, 12, 14, 12)
         self.layout.setSpacing(8)
+        self.title_label: SectionTitle | None = None
         if title:
-            self.layout.addWidget(SectionTitle(title))
+            self.title_label = SectionTitle(title)
+            self.layout.addWidget(self.title_label)
 
 
 class MainWindow(QMainWindow):
@@ -351,6 +354,7 @@ class MainWindow(QMainWindow):
         g.addWidget(details, 0, 0)
         # History
         history = Panel("LATENCY HISTORY (15 MIN)")
+        self.history_panel = history
         self.history_legend = QLabel("—")
         self.history_legend.setAlignment(Qt.AlignmentFlag.AlignRight)
         history.layout.addWidget(self.history_legend)
@@ -386,47 +390,132 @@ class MainWindow(QMainWindow):
 
     # ---------- Setup page ----------
     def _build_setup_page(self) -> QWidget:
-        page = QWidget(); h=QHBoxLayout(page); h.setContentsMargins(14,0,14,0); h.setSpacing(9)
-        side=QFrame(); side.setObjectName("panel"); side.setFixedWidth(280); sl=QVBoxLayout(side); sl.setContentsMargins(0,8,0,8)
-        self.setup_side_buttons=[]
-        for i,text in enumerate(("⚙   General","⌘   Network","⌕   Scan","◎   Discovery","⌁   Thresholds","▣   Config")):
-            b=QPushButton(text); b.setObjectName("sideTab"); b.setCheckable(True); b.setChecked(i==0); self.setup_side_buttons.append(b); sl.addWidget(b)
-        sl.addStretch(1); h.addWidget(side)
-        scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.Shape.NoFrame)
-        content=QWidget(); g=QGridLayout(content); g.setContentsMargins(0,0,0,0); g.setSpacing(9)
-        p=Panel("NETWORK INTERFACE"); self.setup_network_panel=p; self.interface_combo=QComboBox(); self.interface_combo.currentIndexChanged.connect(self._interface_changed); p.layout.addWidget(QLabel("Interface")); p.layout.addWidget(self.interface_combo); g.addWidget(p,0,0)
-        p=Panel("SCAN FREQUENCY"); self.setup_scan_panel=p; self.setup_frequency=QComboBox(); [self.setup_frequency.addItem(f"{x:g} sec",x) for x in SCAN_INTERVAL_OPTIONS]; self.setup_frequency.currentIndexChanged.connect(self._setup_frequency_changed); p.layout.addWidget(QLabel("Frequency")); p.layout.addWidget(self.setup_frequency); g.addWidget(p,0,1)
-        p=Panel("SCAN MODE"); self.setup_all=QPushButton("All at Once"); self.setup_one=QPushButton("One by One"); self.setup_all.setCheckable(True); self.setup_one.setCheckable(True); row=QHBoxLayout(); row.addWidget(self.setup_all); row.addWidget(self.setup_one); p.layout.addWidget(QLabel("Mode")); p.layout.addLayout(row); self.setup_all.clicked.connect(lambda: self._set_scan_mode(SCAN_MODE_ALL_AT_ONCE)); self.setup_one.clicked.connect(lambda: self._set_scan_mode(SCAN_MODE_ONE_BY_ONE)); g.addWidget(p,0,2)
-        p=Panel("TREND GRAPH WINDOW"); row=QHBoxLayout(); self.setup_trend_buttons=[]
-        for label,seconds in TREND_GRAPH_OPTIONS:
-            b=QPushButton(label); b.setCheckable(True); b.clicked.connect(lambda _=False,s=seconds:self._set_trend(s)); self.setup_trend_buttons.append((b,seconds)); row.addWidget(b)
-        p.layout.addWidget(QLabel("Window")); p.layout.addLayout(row); g.addWidget(p,1,0)
-        p=Panel("PING TIMEOUT"); self.timeout_spin=QSpinBox(); self.timeout_spin.setRange(100,10000); self.timeout_spin.setSuffix(" ms"); self.timeout_spin.valueChanged.connect(self._settings_changed); p.layout.addWidget(QLabel("Timeout")); p.layout.addWidget(self.timeout_spin); g.addWidget(p,1,1,1,2)
-        p=Panel("DISCOVERY RANGE"); self.setup_discovery_panel=p; rangeg=QGridLayout(); self.start_ip=QLineEdit(); self.end_ip=QLineEdit(); self.subnet=QLineEdit();
-        for c,(lbl,w) in enumerate((("Start IP",self.start_ip),("End IP",self.end_ip),("Subnet",self.subnet))): rangeg.addWidget(QLabel(lbl),0,c); rangeg.addWidget(w,1,c)
-        for w in (self.start_ip,self.end_ip,self.subnet): w.editingFinished.connect(self._settings_changed)
-        p.layout.addLayout(rangeg); g.addWidget(p,2,0,1,3)
-        p=Panel("LATENCY THRESHOLDS"); self.setup_threshold_panel=p; row=QHBoxLayout(); self.green_spin=QSpinBox(); self.orange_spin=QSpinBox(); self.poor_spin=QSpinBox()
-        for label,spin,color in (("Good (<=)",self.green_spin,GREEN),("Warning (<=)",self.orange_spin,ORANGE),("Poor (>)",self.poor_spin,RED)):
-            wrap=QWidget(); vl=QVBoxLayout(wrap); vl.setContentsMargins(0,0,0,0); hl=QHBoxLayout(); hl.addWidget(StatusDot(color,12)); hl.addWidget(QLabel(label)); vl.addLayout(hl); spin.setRange(0,9999); spin.setSuffix(" ms"); spin.valueChanged.connect(self._threshold_changed); vl.addWidget(spin); row.addWidget(wrap)
-        p.layout.addLayout(row); g.addWidget(p,3,0)
-        p=Panel("CONFIG ACTIONS"); self.setup_config_panel=p; row=QHBoxLayout()
-        for text,handler,danger in (("▣  Load Config",self._load_config_dialog,False),("▣  Save Config",self._save_config_dialog,False),("⇩  Import",self._load_config_dialog,False),("⇧  Export",self._save_config_dialog,False),("↻  Reset Defaults",self._reset_defaults,True)):
-            b=QPushButton(text); b.clicked.connect(handler); b.setObjectName("danger" if danger else ""); row.addWidget(b)
-        p.layout.addLayout(row); g.addWidget(p,3,1,1,2)
-        g.setColumnStretch(0,4); g.setColumnStretch(1,3); g.setColumnStretch(2,3)
-        self.setup_scroll=scroll
+        # All settings fit comfortably on one page. The previous left-side
+        # General/Network/Scan/Discovery/Threshold/Config buttons only scrolled
+        # to panels that were already visible, so they have been deliberately
+        # removed rather than retaining controls that appear to do nothing.
+        page = QWidget()
+        outer = QHBoxLayout(page)
+        outer.setContentsMargins(14, 0, 14, 0)
+        outer.setSpacing(9)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        g = QGridLayout(content)
+        g.setContentsMargins(0, 0, 0, 0)
+        g.setSpacing(9)
+
+        p = Panel("NETWORK INTERFACE")
+        self.setup_network_panel = p
+        self.interface_combo = QComboBox()
+        self.interface_combo.currentIndexChanged.connect(self._interface_changed)
+        p.layout.addWidget(QLabel("Interface"))
+        p.layout.addWidget(self.interface_combo)
+        g.addWidget(p, 0, 0)
+
+        p = Panel("SCAN FREQUENCY")
+        self.setup_scan_panel = p
+        self.setup_frequency = QComboBox()
+        for value in SCAN_INTERVAL_OPTIONS:
+            self.setup_frequency.addItem(f"{value:g} sec", value)
+        self.setup_frequency.currentIndexChanged.connect(self._setup_frequency_changed)
+        p.layout.addWidget(QLabel("Frequency"))
+        p.layout.addWidget(self.setup_frequency)
+        g.addWidget(p, 0, 1)
+
+        p = Panel("SCAN MODE")
+        self.setup_all = QPushButton("All at Once")
+        self.setup_one = QPushButton("One by One")
+        self.setup_all.setCheckable(True)
+        self.setup_one.setCheckable(True)
+        row = QHBoxLayout()
+        row.addWidget(self.setup_all)
+        row.addWidget(self.setup_one)
+        p.layout.addWidget(QLabel("Mode"))
+        p.layout.addLayout(row)
+        self.setup_all.clicked.connect(lambda: self._set_scan_mode(SCAN_MODE_ALL_AT_ONCE))
+        self.setup_one.clicked.connect(lambda: self._set_scan_mode(SCAN_MODE_ONE_BY_ONE))
+        g.addWidget(p, 0, 2)
+
+        p = Panel("TREND GRAPH WINDOW")
+        row = QHBoxLayout()
+        self.setup_trend_buttons = []
+        for label, seconds in TREND_GRAPH_OPTIONS:
+            b = QPushButton(label)
+            b.setCheckable(True)
+            b.clicked.connect(lambda _=False, s=seconds: self._set_trend(s))
+            self.setup_trend_buttons.append((b, seconds))
+            row.addWidget(b)
+        p.layout.addWidget(QLabel("Window"))
+        p.layout.addLayout(row)
+        g.addWidget(p, 1, 0)
+
+        p = Panel("PING TIMEOUT")
+        self.timeout_spin = QSpinBox()
+        self.timeout_spin.setRange(100, 10000)
+        self.timeout_spin.setSuffix(" ms")
+        self.timeout_spin.valueChanged.connect(self._settings_changed)
+        p.layout.addWidget(QLabel("Timeout"))
+        p.layout.addWidget(self.timeout_spin)
+        g.addWidget(p, 1, 1, 1, 2)
+
+        p = Panel("DISCOVERY RANGE")
+        self.setup_discovery_panel = p
+        rangeg = QGridLayout()
+        self.start_ip = QLineEdit()
+        self.end_ip = QLineEdit()
+        self.subnet = QLineEdit()
+        for c, (label, widget) in enumerate((("Start IP", self.start_ip), ("End IP", self.end_ip), ("Subnet", self.subnet))):
+            rangeg.addWidget(QLabel(label), 0, c)
+            rangeg.addWidget(widget, 1, c)
+        for widget in (self.start_ip, self.end_ip, self.subnet):
+            widget.editingFinished.connect(self._settings_changed)
+        p.layout.addLayout(rangeg)
+        g.addWidget(p, 2, 0, 1, 3)
+
+        p = Panel("LATENCY THRESHOLDS")
+        self.setup_threshold_panel = p
+        row = QHBoxLayout()
+        self.green_spin = QSpinBox()
+        self.orange_spin = QSpinBox()
+        self.poor_spin = QSpinBox()
+        for label, spin, color in (("Good (<=)", self.green_spin, GREEN), ("Warning (<=)", self.orange_spin, ORANGE), ("Poor (>)", self.poor_spin, RED)):
+            wrap = QWidget()
+            vl = QVBoxLayout(wrap)
+            vl.setContentsMargins(0, 0, 0, 0)
+            hl = QHBoxLayout()
+            hl.addWidget(StatusDot(color, 12))
+            hl.addWidget(QLabel(label))
+            vl.addLayout(hl)
+            spin.setRange(0, 9999)
+            spin.setSuffix(" ms")
+            vl.addWidget(spin)
+            row.addWidget(wrap)
+        self.green_spin.valueChanged.connect(lambda value: self._threshold_changed("green", value))
+        self.orange_spin.valueChanged.connect(lambda value: self._threshold_changed("orange", value))
+        self.poor_spin.valueChanged.connect(lambda value: self._threshold_changed("poor", value))
+        p.layout.addLayout(row)
+        g.addWidget(p, 3, 0)
+
+        p = Panel("CONFIG ACTIONS")
+        self.setup_config_panel = p
+        row = QHBoxLayout()
+        for text, handler, danger in (("▣  Load Config", self._load_config_dialog, False), ("▣  Save Config", self._save_config_dialog, False), ("⇩  Import", self._load_config_dialog, False), ("⇧  Export", self._save_config_dialog, False), ("↻  Reset Defaults", self._reset_defaults, True)):
+            b = QPushButton(text)
+            b.clicked.connect(handler)
+            b.setObjectName("danger" if danger else "")
+            row.addWidget(b)
+        p.layout.addLayout(row)
+        g.addWidget(p, 3, 1, 1, 2)
+
+        g.setColumnStretch(0, 4)
+        g.setColumnStretch(1, 3)
+        g.setColumnStretch(2, 3)
         scroll.setWidget(content)
-        setup_targets=[self.setup_network_panel,self.setup_network_panel,self.setup_scan_panel,self.setup_discovery_panel,self.setup_threshold_panel,self.setup_config_panel]
-        for i,(button,target) in enumerate(zip(self.setup_side_buttons,setup_targets)):
-            button.clicked.connect(lambda _checked=False,idx=i,w=target:self._setup_navigate(idx,w))
-        h.addWidget(scroll,1); return page
-
-
-    def _setup_navigate(self,index:int,target:QWidget)->None:
-        for i,button in enumerate(self.setup_side_buttons):
-            button.setChecked(i==index)
-        self.setup_scroll.ensureWidgetVisible(target,24,24)
+        outer.addWidget(scroll, 1)
+        return page
 
     # ---------- Discovery page ----------
     def _build_discovery_page(self) -> QWidget:
@@ -536,20 +625,39 @@ class MainWindow(QMainWindow):
         self.settings.scan_mode=mode; self.backend.save(); self._sync_mirrored_controls()
     def _set_trend(self,seconds:int):
         self.settings.trend_graph_seconds=seconds; self.backend.save(); self._sync_mirrored_controls(); self._refresh_all()
-    def _threshold_changed(self):
-        if self._loading_controls:return
-        self.settings.green_max_ms=float(self.green_spin.value()); self.settings.orange_max_ms=max(self.settings.green_max_ms,float(self.orange_spin.value())); self._loading_controls=True; self.orange_spin.setValue(int(self.settings.orange_max_ms)); self.poor_spin.setValue(int(self.settings.orange_max_ms)); self._loading_controls=False; self.backend.save(); self._refresh_all()
+    def _threshold_changed(self, source: str, value: int):
+        if self._loading_controls:
+            return
+        if source == "green":
+            self.settings.green_max_ms = max(0.0, float(value))
+            self.settings.orange_max_ms = max(self.settings.green_max_ms, self.settings.orange_max_ms)
+        else:
+            # Warning <= X and Poor > X share the same boundary. Either of the
+            # two displayed controls can therefore adjust that boundary.
+            self.settings.orange_max_ms = max(self.settings.green_max_ms, float(value))
+        self._loading_controls = True
+        try:
+            self.green_spin.setValue(int(round(self.settings.green_max_ms)))
+            boundary = int(round(self.settings.orange_max_ms))
+            self.orange_spin.setValue(boundary)
+            self.poor_spin.setValue(boundary)
+        finally:
+            self._loading_controls = False
+        self.backend.save()
+        self._refresh_all()
     def _interface_changed(self):
         if self._loading_controls:return
         interface=self.interface_combo.currentData()
         if isinstance(interface,NetworkInterface): self.settings.selected_interface_name=interface.name; self.settings.selected_interface_ip=interface.ip; self._set_discovery_range_from_interface(interface)
         self.backend.save(); self._sync_mirrored_controls(); self._refresh_scope()
-    def _set_discovery_range_from_interface(self,interface:NetworkInterface):
+    def _set_discovery_range_from_interface(self, interface: NetworkInterface):
         try:
-            network=ipaddress.ip_network(f"{interface.ip}/{interface.prefix or 24}",strict=False); hosts=list(network.hosts())
-            if hosts:
-                self.settings.discovery_start_ip=str(hosts[0]); self.settings.discovery_end_ip=str(hosts[-1]); self.settings.discovery_subnet=str(network.netmask)
-        except Exception: pass
+            start, end, subnet = interface_discovery_range(interface)
+            self.settings.discovery_start_ip = start
+            self.settings.discovery_end_ip = end
+            self.settings.discovery_subnet = subnet
+        except Exception:
+            pass
     def _discovery_settings_changed(self):
         if self._loading_controls:return
         self.settings.discovery_start_ip=self.disc_start.text().strip(); self.settings.discovery_end_ip=self.disc_end.text().strip(); self.settings.discovery_subnet=self.disc_subnet.text().strip(); self.backend.save(); self._sync_mirrored_controls(); self._refresh_scope()
@@ -598,14 +706,25 @@ class MainWindow(QMainWindow):
         ids={self.discovery_table.item(r,1).data(Qt.ItemDataRole.UserRole) for r in {i.row() for i in self.discovery_table.selectedIndexes()} if self.discovery_table.item(r,1)}; ids.discard(None)
         if not ids: QMessageBox.information(self,"Discovery","Select one or more discovered devices."); return
         count=self.backend.add_discovery_to_scan(ids); QMessageBox.information(self,"Discovery",f"Added {count} device(s) to Scan Mode."); self._refresh_all()
-    def _clear_log(self): self.backend.event_history.clear(); self._refresh_event_tables()
+    def _clear_log(self):
+        self.backend.clear_event_history()
+        self._refresh_event_tables()
 
     def _load_config_dialog(self):
         path,_=QFileDialog.getOpenFileName(self,"Load Config","","JSON files (*.json)")
         if not path:return
         try:
-            settings,devices=load_config(path); self.backend.settings=settings; self.settings=settings; self.backend.devices=devices; self.backend.config_path=Path(path); self._load_controls_from_settings(); self._refresh_interfaces(); self._refresh_all()
-        except Exception as exc:QMessageBox.critical(self,"Load Config",str(exc))
+            settings, devices = load_config(path)
+            # Import into the normal Application Support config. Loading an
+            # external file must not redirect future auto-saves back into that
+            # arbitrary source file.
+            self.backend.replace_configuration(settings, devices, persist=True)
+            self.settings = self.backend.settings
+            self._refresh_interfaces()
+            self._load_controls_from_settings()
+            self._refresh_all()
+        except Exception as exc:
+            QMessageBox.critical(self, "Load Config", str(exc))
     def _save_config_dialog(self):
         path,_=QFileDialog.getSaveFileName(self,"Save Config","config.json","JSON files (*.json)")
         if path:
@@ -625,26 +744,78 @@ class MainWindow(QMainWindow):
         try:
             with open(path,"w",newline="",encoding="utf-8") as f:
                 w=csv.writer(f); w.writerow(["Time","Level","Source","Message"])
-                for e in self.backend.event_history:w.writerow([time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(e.ts)),e.level,e.source,e.message])
+                for e in self.backend.event_snapshot():w.writerow([time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(e.ts)),e.level,e.source,e.message])
         except Exception as exc:QMessageBox.critical(self,"Export Log",str(exc))
     def _reset_defaults(self):
         if QMessageBox.question(self,"Reset Defaults","Reset settings to defaults? Device list will be retained.")!=QMessageBox.StandardButton.Yes:return
         from .models import AppSettings
-        fresh=AppSettings(); fresh.favourite_device_ids=self.settings.normalised_favourites(); self.backend.settings=fresh; self.settings=fresh; self.backend.save(); self._load_controls_from_settings(); self._refresh_all()
+        fresh = AppSettings()
+        fresh.favourite_device_ids = self.settings.normalised_favourites()
+        devices = list(self.backend.devices)
+        self.backend.replace_configuration(fresh, devices, persist=True)
+        self.settings = self.backend.settings
+        self._refresh_interfaces()
+        self._load_controls_from_settings()
+        self._refresh_all()
 
     # ---------- refresh ----------
     def _tick(self):
-        changed=False
+        device_updates: set[str] = set()
+        device_list_changed = False
+        device_related_changed = False
+        discovery_changed = False
+        scan_state_changed = False
+        event_changed = False
+        discovery_errors: list[str] = []
+
+        # Drain the queue first, then redraw each expensive table at most once
+        # per 200 ms UI tick. Streaming Discovery can produce dozens of events
+        # in one tick, so redrawing for every event was a major slowdown.
         while True:
-            try:item=self.backend.events.get_nowait()
-            except Exception:break
-            if not item:continue
-            kind=item[0]
-            if kind in {"device_update","device_list","favourites","full_refresh","scan_state"}:changed=True
-            elif kind in {"discovery_update","discovery_list","discovery_state"}:self._refresh_discovery_table(); self._refresh_discovery_selected(); self._refresh_scan_state()
-            elif kind=="discovery_error":QMessageBox.warning(self,"Discovery",item[1])
-            elif kind=="event":self._append_event(item[1])
-        if changed:self._refresh_device_table(); self._refresh_selected_device(); self._refresh_favourites(); self._refresh_summary(); self._refresh_scan_state()
+            try:
+                item = self.backend.events.get_nowait()
+            except queue.Empty:
+                break
+            if not item:
+                continue
+            kind = item[0]
+            if kind == "device_update":
+                device_updates.add(item[1])
+                device_related_changed = True
+            elif kind in {"device_list", "full_refresh"}:
+                device_list_changed = True
+                device_related_changed = True
+            elif kind == "favourites":
+                device_related_changed = True
+            elif kind == "scan_state":
+                scan_state_changed = True
+            elif kind in {"discovery_update", "discovery_list", "discovery_state"}:
+                discovery_changed = True
+                if kind == "discovery_state":
+                    scan_state_changed = True
+            elif kind == "discovery_error":
+                discovery_errors.append(str(item[1]))
+            elif kind in {"event", "events_cleared"}:
+                event_changed = True
+
+        if device_list_changed:
+            self._refresh_device_table()
+        elif device_updates:
+            self._refresh_device_rows(device_updates)
+
+        if device_related_changed:
+            self._refresh_selected_device()
+            self._refresh_favourites()
+            self._refresh_summary()
+        if discovery_changed:
+            self._refresh_discovery_table()
+            self._refresh_discovery_selected()
+        if scan_state_changed or discovery_changed:
+            self._refresh_scan_state()
+        if event_changed:
+            self._refresh_event_tables()
+        for message in discovery_errors:
+            QMessageBox.warning(self, "Discovery", message)
         self._refresh_footer()
 
     def _refresh_all(self):
@@ -662,18 +833,87 @@ class MainWindow(QMainWindow):
         favs=self.settings.normalised_favourites()
         for i,tile in enumerate(self.favourite_tiles):tile.set_device(find_device(self.backend.devices,favs[i]),self.settings.trend_graph_seconds,self.settings.green_max_ms,self.settings.orange_max_ms)
 
+    def _populate_device_row(self, row: int, d: DeviceRecord) -> None:
+        handle = self.device_table.item(row, 0)
+        if handle is None:
+            handle = QTableWidgetItem("⋮⋮")
+            handle.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.device_table.setItem(row, 0, handle)
+
+        name = self.device_table.item(row, 1)
+        if name is None:
+            name = QTableWidgetItem()
+            self.device_table.setItem(row, 1, name)
+        name.setText(d.name)
+        name.setData(Qt.ItemDataRole.UserRole, d.device_id)
+
+        hostname = self.device_table.item(row, 2)
+        if hostname is None:
+            hostname = QTableWidgetItem()
+            self.device_table.setItem(row, 2, hostname)
+        hostname.setText(d.hostname or "—")
+
+        ip_item = self.device_table.item(row, 3)
+        if ip_item is None:
+            ip_item = QTableWidgetItem()
+            self.device_table.setItem(row, 3, ip_item)
+        ip_item.setText(d.ip)
+
+        lat = self.device_table.item(row, 4)
+        if lat is None:
+            lat = QTableWidgetItem()
+            lat.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.device_table.setItem(row, 4, lat)
+        lat.setText("Offline" if d.latency_ms is None else f"{d.latency_ms:.2f} ms")
+        lat.setForeground(QBrush(QColor(self._latency_color(d.latency_ms))))
+
+        spark = self.device_table.cellWidget(row, 5)
+        if not isinstance(spark, Sparkline):
+            spark = Sparkline()
+            self.device_table.setCellWidget(row, 5, spark)
+        spark.set_data(
+            d.history_points(self.settings.trend_graph_seconds),
+            self.settings.trend_graph_seconds,
+            d.last_seen_status,
+        )
+
+        failed = self.device_table.item(row, 6)
+        if failed is None:
+            failed = QTableWidgetItem()
+            failed.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.device_table.setItem(row, 6, failed)
+        failed.setText(self._ago(d.last_failed_ts, "No failures"))
+
     def _refresh_device_table(self):
-        selected=self.selected_device_id
-        self.device_table.blockSignals(True); self.device_table.setRowCount(len(self.backend.devices))
-        for row,d in enumerate(self.backend.devices):
-            handle=QTableWidgetItem("⋮⋮"); handle.setTextAlignment(Qt.AlignmentFlag.AlignCenter); self.device_table.setItem(row,0,handle)
-            name=QTableWidgetItem(d.name); name.setData(Qt.ItemDataRole.UserRole,d.device_id); self.device_table.setItem(row,1,name)
-            self.device_table.setItem(row,2,QTableWidgetItem(d.hostname or "—")); self.device_table.setItem(row,3,QTableWidgetItem(d.ip))
-            lat=QTableWidgetItem("Offline" if d.latency_ms is None else f"{d.latency_ms:.2f} ms"); color=RED if d.latency_ms is None or d.latency_ms>self.settings.orange_max_ms else ORANGE if d.latency_ms>self.settings.green_max_ms else GREEN; lat.setForeground(QBrush(QColor(color))); lat.setTextAlignment(Qt.AlignmentFlag.AlignCenter); self.device_table.setItem(row,4,lat)
-            spark=Sparkline(); spark.set_data(d.history_points(self.settings.trend_graph_seconds),self.settings.trend_graph_seconds,d.last_seen_status); self.device_table.setCellWidget(row,5,spark)
-            fail=QTableWidgetItem(self._ago(d.last_failed_ts,"No failures")); fail.setTextAlignment(Qt.AlignmentFlag.AlignCenter); self.device_table.setItem(row,6,fail)
-            if d.device_id==selected:self.device_table.selectRow(row)
-        self.device_table.blockSignals(False)
+        selected = self.selected_device_id
+        self.device_table.blockSignals(True)
+        try:
+            self.device_table.setRowCount(len(self.backend.devices))
+            self._device_row_by_id: dict[str, int] = {}
+            for row, d in enumerate(self.backend.devices):
+                self._device_row_by_id[d.device_id] = row
+                self._populate_device_row(row, d)
+                if d.device_id == selected:
+                    self.device_table.selectRow(row)
+        finally:
+            self.device_table.blockSignals(False)
+
+    def _refresh_device_rows(self, device_ids: set[str]) -> None:
+        row_map = getattr(self, "_device_row_by_id", {})
+        if len(row_map) != len(self.backend.devices):
+            self._refresh_device_table()
+            return
+        self.device_table.blockSignals(True)
+        try:
+            for device_id in device_ids:
+                row = row_map.get(device_id)
+                d = find_device(self.backend.devices, device_id)
+                if row is None or d is None:
+                    self._refresh_device_table()
+                    return
+                self._populate_device_row(row, d)
+        finally:
+            self.device_table.blockSignals(False)
 
     def _device_selection_changed(self):
         rows={i.row() for i in self.device_table.selectedIndexes()}
@@ -688,8 +928,10 @@ class MainWindow(QMainWindow):
         else:self.history_legend.setText("—")
         for k,v in vals.items():self.detail_labels[k].setText(v)
         if d:self.detail_labels["latency"].setStyleSheet(f"color:{self._latency_color(d.latency_ms)};"); self.detail_labels["status"].setStyleSheet(f"color:{GREEN if d.latency_ms is not None else RED};")
-        self.history_graph.set_device(d,self.settings.trend_graph_seconds)
-        mins=max(1,self.settings.trend_graph_seconds//60); title="LATENCY HISTORY (15 MIN)" if mins==15 else f"LATENCY HISTORY ({mins} MIN)"; parent=self.history_graph.parentWidget();
+        self.history_graph.set_device(d, self.settings.trend_graph_seconds)
+        trend_label = next((label for label, seconds in TREND_GRAPH_OPTIONS if seconds == self.settings.trend_graph_seconds), "15 min")
+        if getattr(self, "history_panel", None) is not None and self.history_panel.title_label is not None:
+            self.history_panel.title_label.setText(f"LATENCY HISTORY ({trend_label.upper()})")
         favs=self.settings.normalised_favourites()
         for i,b in enumerate(self.fav_buttons):b.setObjectName("primary" if d and favs[i]==d.device_id else ""); b.style().unpolish(b); b.style().polish(b)
 
@@ -699,7 +941,7 @@ class MainWindow(QMainWindow):
         self.run_threshold_labels["good"].setText(f"{self.settings.green_max_ms:g}"); self.run_threshold_labels["warning"].setText(f"{self.settings.orange_max_ms:g}"); self.run_threshold_labels["poor"].setText(f"{self.settings.orange_max_ms:g}")
 
     def _refresh_discovery_table(self):
-        selected=self.selected_discovery_id; ds=self.backend.discovery_devices; self.discovery_table.blockSignals(True); self.discovery_table.setRowCount(len(ds))
+        selected=self.selected_discovery_id; ds=self.backend.discovery_snapshot(); self.discovery_table.blockSignals(True); self.discovery_table.setRowCount(len(ds))
         for row,d in enumerate(ds):
             self.discovery_table.setItem(row,0,QTableWidgetItem("⋮⋮")); name=QTableWidgetItem(d.name); name.setData(Qt.ItemDataRole.UserRole,d.device_id); self.discovery_table.setItem(row,1,name); self.discovery_table.setItem(row,2,QTableWidgetItem(d.hostname or "—")); self.discovery_table.setItem(row,3,QTableWidgetItem(d.ip))
             status="Reachable" if d.latency_ms is not None else "No Response" if d.last_seen_status=="fail" else "Unknown"; color=GREEN if d.latency_ms is not None else RED if d.last_seen_status=="fail" else ORANGE
@@ -714,7 +956,7 @@ class MainWindow(QMainWindow):
             item=self.discovery_table.item(min(rows),1); self.selected_discovery_id=item.data(Qt.ItemDataRole.UserRole) if item else None
         self._refresh_discovery_selected()
     def _refresh_discovery_selected(self):
-        d=find_device(self.backend.discovery_devices,self.selected_discovery_id); vals={k:"—" for k in self.disc_detail}
+        d=find_device(self.backend.discovery_snapshot(),self.selected_discovery_id); vals={k:"—" for k in self.disc_detail}
         if d: vals={"name":d.name,"hostname":d.hostname or "—","ip":d.ip,"status":"●  Reachable" if d.latency_ms is not None else "●  No Response" if d.last_seen_status=="fail" else "●  Unknown","latency":"—" if d.latency_ms is None else f"{d.latency_ms:.2f} ms","mac":d.mac_address or "—","source":d.discovery_source or "—","seen":self._ago(d.last_seen_ts,"—")}
         for k,v in vals.items():self.disc_detail[k].setText(v)
         if d:self.disc_detail["status"].setStyleSheet(f"color:{GREEN if d.latency_ms is not None else RED if d.last_seen_status=="fail" else ORANGE};")
@@ -725,19 +967,38 @@ class MainWindow(QMainWindow):
             net=ipaddress.ip_network(f"{self.settings.discovery_start_ip}/{self.settings.discovery_subnet}",strict=False); self.scope_labels["subnet"].setText(str(net)); self.scope_labels["broadcast"].setText(str(net.broadcast_address))
         except Exception:self.scope_labels["subnet"].setText("Invalid"); self.scope_labels["broadcast"].setText("—")
 
-    def _append_event(self,record:EventRecord):
+    def _append_event(self, record: EventRecord):
+        # Kept as a small compatibility hook; _tick batches actual redraws.
         self._refresh_event_tables()
+
+    def _fill_event_table(self, table: QTableWidget | None, records: list[EventRecord]) -> None:
+        if table is None:
+            return
+        records = records[-500:]
+        table.setRowCount(len(records))
+        for row, event in enumerate(reversed(records)):
+            values = [
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(event.ts)),
+                event.level,
+                event.source,
+                event.message,
+            ]
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                if col == 1:
+                    item.setForeground(QBrush(QColor(GREEN if event.level == "INFO" else ORANGE if event.level == "WARN" else RED)))
+                table.setItem(row, col, item)
+
     def _refresh_event_tables(self):
-        level=self.log_level.currentText() if hasattr(self,"log_level") else "All"; records=[e for e in self.backend.event_history if level=="All" or e.level==level]; records=records[-500:]
-        for table in (getattr(self,"run_event_table",None),getattr(self,"discovery_event_table",None),getattr(self,"log_table",None)):
-            if table is None:continue
-            table.setRowCount(len(records))
-            for r,e in enumerate(reversed(records)):
-                vals=[time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(e.ts)),e.level,e.source,e.message]
-                for c,val in enumerate(vals):
-                    item=QTableWidgetItem(val)
-                    if c==1:item.setForeground(QBrush(QColor(GREEN if e.level=="INFO" else ORANGE if e.level=="WARN" else RED)))
-                    table.setItem(r,c,item)
+        records = self.backend.event_snapshot()
+        # Run shows the complete operational log. Discovery's dedicated log is
+        # limited to Discovery events. Only the Log page obeys its level filter.
+        self._fill_event_table(getattr(self, "run_event_table", None), records)
+        discovery_records = [event for event in records if event.source == "DISCOVERY"]
+        self._fill_event_table(getattr(self, "discovery_event_table", None), discovery_records)
+        level = self.log_level.currentText() if hasattr(self, "log_level") else "All"
+        log_records = [event for event in records if level == "All" or event.level == level]
+        self._fill_event_table(getattr(self, "log_table", None), log_records)
 
     def _clear_discovery(self):self.backend.clear_discovery();self.selected_discovery_id=None;self._refresh_discovery_table();self._refresh_discovery_selected()
     def _refresh_footer(self):
