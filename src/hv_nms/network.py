@@ -239,8 +239,15 @@ def normalize_hostname(host: str) -> str:
         return ""
     if re.fullmatch(r"(?:\d{1,3}\.){3}\d{1,3}", host) or re.fullmatch(r"\d{1,3}", host):
         return ""
+    # Resolver status/error tokens are not hostnames. In particular, macOS
+    # dns-sd can emit a reverse-query line ending in NXDOMAIN. Earlier builds
+    # treated that final token as a valid PTR target, which caused both the
+    # Discovery Device and Host Name columns to become literally "NXDOMAIN".
     if host.lower().rstrip(":") in {
         "server", "name", "address", "addresses", "router", "gateway", "unknown", "host",
+        "nxdomain", "servfail", "refused", "notfound", "not_found", "nonexistent",
+        "timeout", "timedout", "noerror", "formerr", "notimp", "yxdomain", "yxrrset",
+        "nxrrset", "notauth", "notzone",
     }:
         return ""
     # Keep normal DNS/mDNS/NetBIOS characters only. This rejects command labels
@@ -300,6 +307,14 @@ def _parse_resolver_output(ip: str, output: str) -> str:
         if not line or line == ip or line.startswith(";"):
             continue
         lower = line.lower()
+        # Do not harvest DNS status text as a hostname. This catches output
+        # from dns-sd, host and nslookup such as "... NXDOMAIN",
+        # "Host ... not found" and "No Such Record".
+        if any(token in lower for token in (
+            "nxdomain", "servfail", "refused", "not found", "no such record",
+            "can't find", "cannot find", "timed out", "timeout", "no answer",
+        )):
+            continue
         if any(lower.startswith(prefix) for prefix in ("server:", "address:", "addresses:")):
             continue
         if ".in-addr.arpa" in lower:

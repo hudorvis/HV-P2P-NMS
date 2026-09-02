@@ -1,4 +1,4 @@
-# GitHub Actions build debug — v26.09.02.03
+# GitHub Actions build debug — v26.09.02.04
 
 The first `v26.09.01.04` GitHub run produced a valid Intel artifact, while the Apple Silicon job never executed a workflow step. GitHub reported:
 

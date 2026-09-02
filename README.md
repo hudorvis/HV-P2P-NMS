@@ -1,4 +1,4 @@
-# HV P2P NMS v26.09.02.03
+# HV P2P NMS v26.09.02.04
 
 GitHub-ready source for the redesigned HV P2P Network Management System.
 
@@ -55,6 +55,7 @@ The Scan Mode worker belongs to the application backend, not the Run page, so an
 Three favourite devices are persistent. Select a device on Run and use `Assign to Favourite 1 / 2 / 3`. Each header tile is restricted to the approved fields: health dot, Device, IP Address, Latency and compact latency trend.
 
 `nmap` is optional. Discovery streams cached ARP and successful ping results first, resolves hostnames asynchronously, and runs optional nmap work without blocking the first visible devices. Without nmap, ping/ARP discovery still works.
+Resolver failures such as `NXDOMAIN`, `SERVFAIL` and `REFUSED` are treated as lookup failures and are never displayed as device or host names.
 
 Application configuration is stored outside the `.app` bundle under:
 

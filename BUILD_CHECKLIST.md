@@ -1,4 +1,4 @@
-# Release checklist — v26.09.02.03
+# Release checklist — v26.09.02.04
 
 - [x] Legacy Python source reviewed and core monitoring/discovery/config behaviour mapped.
 - [x] Stable device IDs used instead of row-index result routing.
@@ -19,4 +19,6 @@
 - [x] Discovery target limits are enforced before allocating large address ranges.
 - [x] Setup sidebar navigation removed; all settings remain on one consolidated page.
 - [x] Stale in-flight ping results are rejected after IP/config changes.
-- [x] Backend/release regression suite passes locally: 29/29 tests.
+- [x] Backend/release regression suite passes locally: 31/31 tests.
+
+- [x] DNS resolver status strings (including NXDOMAIN/SERVFAIL/REFUSED) are rejected at parser, resolver and model-write boundaries.

@@ -9,7 +9,7 @@ from pathlib import Path
 from .config import save_config
 from .constants import DISCOVERY_WORKERS, SCAN_MODE_ONE_BY_ONE
 from .models import AppSettings, DeviceRecord, EventRecord
-from .network import ArpEntry, discovery_targets, nmap_discover, ping_once, read_arp_entries, resolve_hostname
+from .network import ArpEntry, discovery_targets, nmap_discover, normalize_hostname, ping_once, read_arp_entries, resolve_hostname
 
 
 class MonitorBackend:
@@ -350,6 +350,9 @@ class MonitorBackend:
         hostname: str = "",
         mac: str = "",
     ) -> tuple[DeviceRecord | None, bool]:
+        # Treat every discovery-source hostname as untrusted resolver text.
+        # Only a syntactically valid, non-status hostname may reach the model.
+        hostname = normalize_hostname(hostname)
         if self._discovery_cancelled(generation):
             return None, False
         with self._lock:
@@ -398,6 +401,11 @@ class MonitorBackend:
             self._apply_hostname(generation, ip, hostname)
 
     def _apply_hostname(self, generation: int, ip: str, hostname: str) -> None:
+        # Sanitize at the final write boundary as well as inside individual
+        # resolvers. This prevents resolver status strings (for example
+        # NXDOMAIN) from ever becoming a Device/Host Name even if a future
+        # resolver or direct discovery hint returns malformed text.
+        hostname = normalize_hostname(hostname)
         if self._discovery_cancelled(generation) or not hostname:
             return
         changed = False

@@ -19,6 +19,7 @@ from hv_nms.network import (
     NetworkInterface,
     discovery_targets,
     hostname_from_ping_output,
+    normalize_hostname,
     interface_discovery_range,
     read_arp_entries,
     resolve_hostname,
@@ -104,6 +105,41 @@ def test_resolve_hostname_uses_fast_hint_without_external_lookup(monkeypatch):
     monkeypatch.setattr(network_module.socket, "gethostbyaddr", lambda _ip: (_ for _ in ()).throw(AssertionError("must not run")))
     assert resolve_hostname("172.20.1.82", "camera.local") == "camera.local"
 
+
+
+def test_resolver_status_tokens_are_never_hostnames(monkeypatch):
+    for value in ("NXDOMAIN", "SERVFAIL", "REFUSED", "NOTFOUND", "NOERROR"):
+        assert normalize_hostname(value) == ""
+
+    # Reproduce the macOS dns-sd shape that exposed the v26.09.02.03 bug:
+    # a reverse query line contains in-addr.arpa and ends with NXDOMAIN.
+    monkeypatch.setattr(network_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(network_module.shutil, "which", lambda cmd: f"/usr/bin/{cmd}")
+
+    def fake_output(cmd, timeout=2.0):
+        if cmd and cmd[0] == "dns-sd":
+            return "21:24:12.123  Add  2  0  82.1.20.172.in-addr.arpa. PTR NXDOMAIN"
+        if cmd and cmd[0] in {"dscacheutil", "host", "dig", "nslookup", "nmblookup", "nbtscan", "smbutil"}:
+            return "NXDOMAIN"
+        return ""
+
+    monkeypatch.setattr(network_module, "_command_output", fake_output)
+    assert resolve_hostname("172.20.1.82") == ""
+
+
+def test_backend_rejects_invalid_hostname_hint(tmp_path):
+    backend = MonitorBackend(AppSettings(), [], tmp_path / "config.json")
+    backend.discovery_active = True
+    backend._discovery_generation = 7
+    device, _ = backend._upsert_discovery(7, "172.20.1.82", source="arp", hostname="NXDOMAIN")
+    assert device is not None
+    assert device.name == "172.20.1.82"
+    assert device.hostname == ""
+    backend._apply_hostname(7, "172.20.1.82", "NXDOMAIN")
+    snapshot = backend.discovery_snapshot()
+    assert snapshot[0].name == "172.20.1.82"
+    assert snapshot[0].hostname == ""
+    backend.shutdown()
 
 def test_config_round_trip_preserves_stable_ids_and_favourites(tmp_path):
     a = DeviceRecord("CTRL", "172.20.1.101")
