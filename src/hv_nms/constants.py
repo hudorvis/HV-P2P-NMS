@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 APP_TITLE = "HV P2P NMS"
-APP_VERSION = "v26.09.01.04"
+APP_VERSION = "v26.09.02.01"
 BUNDLE_ID = "com.hudorvisual.hvp2pnms"
 
 # Locked SRVR/NMS visual palette. Keep these centralised so the whole app stays consistent.

@@ -1,29 +1,31 @@
-1420cc110dea3e42d9b211135616b79800beaf8a5976e5257a1e694a68996d98  ./.github/workflows/build-macos.yml
-b182f53ae329c09371c5ee87df893e24bfe877e8ad7dd126cefd40fa6b703130  ./.gitignore
-7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d  ./.python-version
-8ca0f6b60602b389283ddc03a5cc25ee9cc224222488778ddb54cc0630f68626  ./BUILD_CHECKLIST.md
-8d4db36e9c8309fdf5b057ac53c4f4d661ecb1aa348338468860a7ffa1630aac  ./DESIGN_LOCK.md
-aba11d4f734688714389753cd7474c308175f4eb2171f910f47aef175cbe7525  ./HV_P2P_NMS.spec
-9d25cf4a8ea8f9c8c23c140e813ba1fb8d2d26f4f1f691123b8542ebe930f8a7  ./LEGACY_FUNCTIONALITY.md
-2a1e59655c9a7c71d7f7fa290f7fbeca5ba58ce27ccfbf0a5b94d533758139f3  ./README.md
-eb7fa82394f69e43f820f3b75ae3d429556b8e1899e2f718e1931c1d95655654  ./assets/icon_1024.png
-bd488d4a37d62adee7ea519e939ab74644ff4e3ce3ea31c554dc49b561041df4  ./design-reference/Discovery.png
-3c36afee30bd302687217d0fd1fb1ba97463ff386af8da4860a04f6af642fbb3  ./design-reference/Run-Scan-Mode.png
-a183d286a480e96c39175c3d76dab6edc026853c9628a413cdf3d8249e3a8841  ./design-reference/SRVR-theme-reference.png
-7bc28bf7ebeb9be6260cf9b69d6021c6a0cc5b87077d6c91efee3c84306cb696  ./design-reference/Setup.png
-0922d82a60b616ffaf801784738325d7f1925ec773c99135f64767d14166d725  ./pytest.ini
-95ce70ca02bd2b884b7846daf7142b00ab5bd1bc69f9520551451623e9d60d5f  ./requirements-build.txt
-385e039f43c455549f3e79039a7b68169284eac3f18a35e0db4fa5ebdec01e44  ./requirements.txt
-91a0977c939c2034ad8cbffce2fcb0864736bb8fb1b5f5b553d4cb3849aa349c  ./run_hv_nms.py
-ed05dfafa7294f8880d045edf1c131454178a2acd183f6fbe5c5d75247ebc156  ./scripts/build_macos.sh
-c3baf12657f264c3f4d7ba1790e95d4681a7f545fd6fd46d5882926656fd5f84  ./scripts/make_icns.sh
-4f097f37e643aba91a326b0d0a6a8f187d2cabbb2a7e0471e38638070ab39827  ./src/hv_nms/__init__.py
-537a532c3d7af4099007c521070f36dcf2be6bd95a7a69c74e5292768bf47669  ./src/hv_nms/backend.py
-ac892502545dbf4b9de9b55438c2a33e387130730e930dc35f266cb12dc10197  ./src/hv_nms/config.py
-afe52984666cabbf3300af17ac3ab7e92bb1915ad2801cb7d2bdbe8aac1f84e1  ./src/hv_nms/constants.py
-b5449bd3fb9ed336e43357c10109bd36af09e0e11e1193e31e2630825f201e2b  ./src/hv_nms/main.py
-f52d599e8ad95337edfd083cd2a605f9c1617b8c0bc88c56d5af2656f3a73665  ./src/hv_nms/main_window.py
-2ee8012ac67141a778039abf41a17e2781edf2b1f2eb0afc488005c812236a54  ./src/hv_nms/models.py
-3190c23df9dbab5f14e7d550cad433b065759e1de60a3858d046cb9037b61a48  ./src/hv_nms/network.py
-7586a70fab0a5ba0d600993f2bfac96bfdeb60afdc7c537de2bf85b81773eb6e  ./src/hv_nms/widgets.py
-8d852157afa8a36101418c41139ad5e94053a6e2782c2c456a98077c4083c73a  ./tests/test_backend.py
+.github/workflows/build-macos.yml
+.gitignore
+.python-version
+BUILD_CHECKLIST.md
+BUILD_DEBUG.md
+DESIGN_LOCK.md
+HV_P2P_NMS.spec
+LEGACY_FUNCTIONALITY.md
+README.md
+SOURCE_MANIFEST.txt
+assets/icon_1024.png
+design-reference/Discovery.png
+design-reference/Run-Scan-Mode.png
+design-reference/SRVR-theme-reference.png
+design-reference/Setup.png
+pytest.ini
+requirements-build.txt
+requirements.txt
+run_hv_nms.py
+scripts/build_macos.sh
+scripts/make_icns.sh
+src/hv_nms/__init__.py
+src/hv_nms/backend.py
+src/hv_nms/config.py
+src/hv_nms/constants.py
+src/hv_nms/main.py
+src/hv_nms/main_window.py
+src/hv_nms/models.py
+src/hv_nms/network.py
+src/hv_nms/widgets.py
+tests/test_backend.py

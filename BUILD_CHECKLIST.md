@@ -1,4 +1,4 @@
-# Release checklist — v26.09.01.04
+# Release checklist — v26.09.02.01
 
 - [x] Legacy Python source reviewed and core monitoring/discovery/config behaviour mapped.
 - [x] Stable device IDs used instead of row-index result routing.

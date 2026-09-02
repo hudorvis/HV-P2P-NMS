@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 : "${TARGET_ARCH:?TARGET_ARCH must be x86_64 or arm64}"
 case "$TARGET_ARCH" in x86_64) SUFFIX="Intel-x86_64" ;; arm64) SUFFIX="Apple-Silicon-arm64" ;; *) echo "Unsupported TARGET_ARCH=$TARGET_ARCH"; exit 2 ;; esac
-VERSION="v26.09.01.04"
+VERSION="v26.09.02.01"
 export MACOSX_DEPLOYMENT_TARGET="13.0"
 rm -rf build dist release
 mkdir -p release

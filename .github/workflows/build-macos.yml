@@ -14,7 +14,7 @@ jobs:
     name: Backend regression tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -35,17 +35,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Use the mature macOS 15 pools.  These are native ARM64 and Intel
+          # GitHub-hosted runners and avoid depending on the newer macOS 26
+          # pool, which can occasionally fail before a runner is acquired.
           - label: Apple Silicon
-            runner: macos-26
+            runner: macos-15
             arch: arm64
             artifact: HV-P2P-NMS-macOS-Apple-Silicon
           - label: Intel
-            runner: macos-26-intel
+            runner: macos-15-intel
             arch: x86_64
             artifact: HV-P2P-NMS-macOS-Intel
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -61,6 +65,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          set -euxo pipefail
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
 
@@ -68,6 +73,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
+          set -euxo pipefail
           python -m compileall -q src tests run_hv_nms.py
           python -c "import PySide6; from hv_nms.main_window import MainWindow; print('PySide6/UI import PASS')"
           python -m pytest tests -q
@@ -81,7 +87,7 @@ jobs:
         run: bash scripts/build_macos.sh
 
       - name: Upload compiled macOS build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: release/*

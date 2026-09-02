@@ -1,13 +1,13 @@
-# HV P2P NMS v26.09.01.04
+# HV P2P NMS v26.09.02.01
 
 GitHub-ready source for the redesigned HV P2P Network Management System.
 
 This revision rebuilds the supplied legacy NMS logic into a PySide6 desktop application while keeping the approved NMS visual design locked. It deliberately builds two native macOS applications rather than relying on Rosetta:
 
-- **Apple Silicon / arm64** on GitHub's `macos-26` runner.
-- **Intel / x86_64** on GitHub's `macos-26-intel` runner.
+- **Apple Silicon / arm64** on GitHub's `macos-15` runner.
+- **Intel / x86_64** on GitHub's `macos-15-intel` runner.
 
-The current PySide6 macOS wheel is Universal2 and requires macOS 13 or later, so the application bundle is intentionally configured with `LSMinimumSystemVersion = 13.0`.
+The current PySide6 macOS wheel is Universal2 and requires macOS 13 or later, so the application bundle is intentionally configured with `LSMinimumSystemVersion = 13.0`. See `BUILD_DEBUG.md` for the v26.09.01.04 hosted-runner scheduling failure and the CI-only changes in this revision.
 
 ## What GitHub Actions produces
 
