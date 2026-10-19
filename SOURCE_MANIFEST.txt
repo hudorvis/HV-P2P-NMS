@@ -21,6 +21,7 @@ run_hv_nms.py
 scripts/build_macos.sh
 scripts/build_windows.ps1
 scripts/make_icns.sh
+scripts/package_all_platforms.py
 scripts/verify_pe_arch.py
 src/hv_nms/__init__.py
 src/hv_nms/backend.py
@@ -32,4 +33,5 @@ src/hv_nms/models.py
 src/hv_nms/network.py
 src/hv_nms/widgets.py
 tests/test_backend.py
+tests/test_distribution.py
 tests/test_release_structure.py

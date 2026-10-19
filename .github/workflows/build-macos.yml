@@ -1,4 +1,4 @@
-name: Build HV P2P NMS - macOS Intel, Apple Silicon and Windows
+name: Build HV P2P NMS - All Platforms
 
 on:
   workflow_dispatch:
@@ -41,11 +41,11 @@ jobs:
           - label: Apple Silicon
             runner: macos-15
             arch: arm64
-            artifact: "HV P2P NMS v26.10.19.02 macOS Apple Silicon"
+            artifact: "HV P2P NMS v26.10.19.03 macOS Apple Silicon"
           - label: Intel
             runner: macos-15-intel
             arch: x86_64
-            artifact: "HV P2P NMS v26.10.19.02 macOS Intel"
+            artifact: "HV P2P NMS v26.10.19.03 macOS Intel"
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
@@ -142,7 +142,139 @@ jobs:
       - name: Upload compiled Windows build
         uses: actions/upload-artifact@v6
         with:
-          name: "HV P2P NMS v26.10.19.02 Windows x64"
+          name: "HV P2P NMS v26.10.19.03 Windows x64"
           path: release/*
           if-no-files-found: error
           retention-days: 30
+
+  package-all:
+    name: Verify and bundle all three platforms
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      # Pattern includes only the 3 native platform builds; the aggregate
+      # artifact from another run can never accidentally be used here.
+      - name: Download all native platform artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: HV P2P NMS v26.10.19.03 *
+          path: incoming
+          merge-multiple: false
+
+      - name: Validate checksums and make combined ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/package_all_platforms.py \
+            --input incoming \
+            --output release-assets \
+            --version v26.10.19.03
+          python - <<'PYVERIFY'
+          from pathlib import Path
+          import zipfile
+          archive = Path('release-assets/HV P2P NMS v26.10.19.03 All Platforms.zip')
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              members = z.namelist()
+          for platform in ('macOS Intel/', 'macOS Apple Silicon/', 'Windows x64/'):
+              assert any(name.startswith(platform) for name in members), platform
+          print('Three-platform archive integrity PASS')
+          PYVERIFY
+
+      - name: Upload combined All Platforms download
+        uses: actions/upload-artifact@v6
+        with:
+          name: HV P2P NMS v26.10.19.03 All Platforms
+          path: |
+            release-assets/HV P2P NMS v26.10.19.03 All Platforms.zip
+            release-assets/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Store direct-installation release assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: HV P2P NMS v26.10.19.03 Direct Installers
+          path: |
+            release-assets/*.dmg
+            release-assets/*.exe
+            release-assets/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  publish-release:
+    name: Publish direct downloads to GitHub Releases
+    needs: package-all
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v26.10.19.03'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: hv-p2p-nms-release-v26.10.19.03
+      cancel-in-progress: false
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Retrieve verified direct-download assets
+        uses: actions/download-artifact@v6
+        with:
+          name: HV P2P NMS v26.10.19.03 Direct Installers
+          path: native-assets
+      - name: Retrieve verified combined ZIP
+        uses: actions/download-artifact@v6
+        with:
+          name: HV P2P NMS v26.10.19.03 All Platforms
+          path: bundle-assets
+      - name: Publish versioned GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG='v26.10.19.03'
+          test -f 'bundle-assets/HV P2P NMS v26.10.19.03 All Platforms.zip'
+          test "$(find native-assets -maxdepth 1 -name '*.dmg' | wc -l | tr -d ' ')" = 2
+          test "$(find native-assets -maxdepth 1 -name '*.exe' | wc -l | tr -d ' ')" = 1
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists; retaining published assets."
+            exit 0
+          fi
+          cat > release_notes.md <<'NOTES'
+          HV P2P NMS v26.10.19.03
+
+          Direct downloads (recommended if Chrome has trouble downloading Actions artifacts):
+          - All Platforms.zip: macOS Intel DMG, Apple Silicon DMG, Windows x64 EXE
+          - macOS Intel DMG
+          - macOS Apple Silicon DMG
+          - Windows x64 EXE
+          - SHA256SUMS.txt: checksums for each direct release asset
+
+          The NMS interface, discovery functionality, scanning and favourites
+          remain unchanged from v26.10.19.02. This revision improves distribution.
+          These applications are not Developer ID-notarized / Authenticode-signed.
+          NOTES
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            gh release create "$TAG" \
+              --verify-tag \
+              --title "HV P2P NMS $TAG" \
+              --notes-file release_notes.md \
+              native-assets/*.dmg native-assets/*.exe \
+              'bundle-assets/HV P2P NMS v26.10.19.03 All Platforms.zip' \
+              native-assets/SHA256SUMS.txt
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "HV P2P NMS $TAG" \
+              --notes-file release_notes.md \
+              native-assets/*.dmg native-assets/*.exe \
+              'bundle-assets/HV P2P NMS v26.10.19.03 All Platforms.zip' \
+              native-assets/SHA256SUMS.txt
+          fi

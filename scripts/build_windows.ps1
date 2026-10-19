@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
-$Version = 'v26.10.19.02'
+$Version = 'v26.10.19.03'
 if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64) {
     throw 'This build must run on native Windows x64.'
 }

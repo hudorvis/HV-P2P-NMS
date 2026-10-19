@@ -1,5 +1,5 @@
-# GitHub Actions build debug — v26.10.19.02
-## v26.10.19.02 CI manifest fix
+# GitHub Actions build debug — v26.10.19.03
+## v26.10.19.03 CI manifest fix
 
 GitHub Actions checks the repository out with a `.git/` metadata directory. The release-manifest regression test previously walked the entire repository root but did not exclude `.git/`, so it passed in the clean release ZIP yet failed on every normal GitHub checkout by treating Git internals as unexpected release files. The test now explicitly excludes `.git/` while continuing to compare every real release file against `SOURCE_MANIFEST.txt`. No application runtime, discovery, UI, or build-architecture behaviour was changed by this fix.
 
@@ -24,11 +24,11 @@ Later NMS revisions also improve Discovery responsiveness/hostname resolution an
 If GitHub again reports a hosted-runner acquisition error and there are no step logs, re-run the failed job. That class of failure is upstream of the repository and cannot be retried from inside a job because no runner has started executing the workflow yet.
 
 
-## v26.10.19.02 discovery identity hardening
+## v26.10.19.03 discovery identity hardening
 
 The v26.09.02.04 build correctly stopped displaying resolver errors such as `NXDOMAIN`, but a production LAN with no conventional reverse-DNS PTR records could still show IP-only Discovery rows. v26.09.02.05 keeps the fast ping/ARP stream and adds independent identity sources: ping-banner resolution, active mDNS reverse PTRs, Bonjour/DNS-SD service instance + SRV/A resolution, direct NetBIOS NBSTAT, repeat lookup attempts after cache warm-up, and explicit Homebrew/MacPorts executable lookup for GUI-launched macOS apps. The macOS bundle also now declares Local Network privacy usage so Bonjour/mDNS access can be granted by the user.
 
-## v26.10.19.02 multi-platform build
+## v26.10.19.03 multi-platform build
 
 The original macOS-only GitHub workflow now runs native builds on `macos-15`
 (arm64), `macos-15-intel` (x86_64), and `windows-2022` (AMD64). The PyInstaller
@@ -38,7 +38,7 @@ frozen EXE `--self-test`, and packages .exe/.zip and checksum. Current sources
 were validated on Linux; macOS/Windows native bundling must pass their
 respective GitHub runners before these can be called release-tested binaries.
 
-## v26.10.19.02 Windows GitHub CI failure
+## v26.10.19.03 Windows GitHub CI failure
 
 Windows PowerShell runner defaulted to CP1252 when `tests/test_release_structure.py`
 called `Path.read_text()` without specifying an encoding. The UTF-8 UI source
@@ -47,3 +47,13 @@ regression tests failed before reaching any assertion. All 3 failing reads
 now explicitly use UTF-8, as do all other reads in that test module.
 The Windows build job additionally sets `PYTHONUTF8=1`. This is a test-host
 encoding failure, not evidence of a Qt import or application build failure.
+
+## v26.10.19.03 distribution-only delta
+
+- All 3 native platform jobs must complete before the aggregate job runs.
+- The aggregator checks platform checksum manifests for both Mac builds and Windows.
+- All Platforms ZIP contains two native DMGs and one native Windows EXE, with checksums.
+- A distinct Actions artifact stores the complete combined ZIP; a second stores direct installers.
+- A GitHub Release publishes direct downloads for users whose browser cannot complete
+  the GitHub Actions artifact redirect download.
+- Existing app/backend/theme functionality is deliberately unchanged.

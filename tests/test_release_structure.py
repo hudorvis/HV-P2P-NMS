@@ -9,12 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_release_version_is_consistent_across_build_files():
-    assert APP_VERSION == "v26.10.19.02"
-    assert 'APP_VERSION = "v26.10.19.02"' in (ROOT / "src/hv_nms/__init__.py").read_text(encoding="utf-8")
-    assert 'VERSION="v26.10.19.02"' in (ROOT / "scripts/build_macos.sh").read_text(encoding="utf-8")
+    assert APP_VERSION == "v26.10.19.03"
+    assert 'APP_VERSION = "v26.10.19.03"' in (ROOT / "src/hv_nms/__init__.py").read_text(encoding="utf-8")
+    assert 'VERSION="v26.10.19.03"' in (ROOT / "scripts/build_macos.sh").read_text(encoding="utf-8")
     spec = (ROOT / "HV_P2P_NMS.spec").read_text(encoding="utf-8")
-    assert '"CFBundleShortVersionString": "26.10.19.02"' in spec
-    assert '"CFBundleVersion": "26.10.19.02"' in spec
+    assert '"CFBundleShortVersionString": "26.10.19.03"' in spec
+    assert '"CFBundleVersion": "26.10.19.03"' in spec
 
 
 def test_workflow_builds_native_apple_silicon_and_intel():
@@ -92,7 +92,7 @@ def test_windows_x64_job_and_distribution_contract():
     assert "runner: macos-15\n            arch: arm64" in workflow
     assert "runner: macos-15-intel\n            arch: x86_64" in workflow
     assert "runs-on: windows-2022" in workflow
-    assert 'name: "HV P2P NMS v26.10.19.02 Windows x64"' in workflow
+    assert 'name: "HV P2P NMS v26.10.19.03 Windows x64"' in workflow
     assert "actions/upload-artifact@v6" in workflow
     assert "scripts/build_windows.ps1" in workflow
     assert "python -m pytest tests -q" in workflow
@@ -170,6 +170,6 @@ def test_distribution_uses_spaced_release_names():
     workflow = (ROOT / ".github/workflows/build-macos.yml").read_text(encoding="utf-8")
     assert 'HV P2P NMS ${VERSION} macOS ${SUFFIX}' in mac
     assert 'HV P2P NMS ${Version} Windows x64' in win
-    assert 'HV P2P NMS v26.10.19.02 macOS Apple Silicon' in workflow
-    assert 'HV P2P NMS v26.10.19.02 macOS Intel' in workflow
-    assert 'HV P2P NMS v26.10.19.02 Windows x64' in workflow
+    assert 'HV P2P NMS v26.10.19.03 macOS Apple Silicon' in workflow
+    assert 'HV P2P NMS v26.10.19.03 macOS Intel' in workflow
+    assert 'HV P2P NMS v26.10.19.03 Windows x64' in workflow

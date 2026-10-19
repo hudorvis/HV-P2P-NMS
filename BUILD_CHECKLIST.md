@@ -1,4 +1,4 @@
-# Release checklist — v26.10.19.02
+# Release checklist — v26.10.19.03
 
 - [x] Legacy Python source reviewed and core monitoring/discovery/config behaviour mapped.
 - [x] Stable device IDs used instead of row-index result routing.
@@ -30,7 +30,7 @@
 
 - [x] DNS resolver status strings (including NXDOMAIN/SERVFAIL/REFUSED) are rejected at parser, resolver and model-write boundaries.
 
-## v26.10.19.02 additions
+## v26.10.19.03 additions
 
 - [x] Start from the user-uploaded `v26.09.03.01` source archive.
 - [x] Preserve all approved UI source and SRVR neutral greys.
@@ -40,10 +40,20 @@
 - [x] Keep separate macOS Apple Silicon and Intel architecture checks and packages.
 - [ ] Confirm GitHub's three platform jobs complete successfully (requires hosted native runners).
 
-## v26.10.19.02 fixes
+## v26.10.19.03 fixes
 
 - [x] UTF-8 explicit source reads in the release-structure tests.
 - [x] Windows job sets `PYTHONUTF8=1` to avoid CP1252 defaults.
 - [x] Spaced user-facing release package, extracted directory and GitHub artifact names.
 - [x] Scan/discovery/favourites/layout functional sources remain unmodified.
 - [ ] GitHub native runners build/install/launch Windows, Intel and Apple Silicon executables.
+
+## v26.10.19.03 distribution-only delta
+
+- All 3 native platform jobs must complete before the aggregate job runs.
+- The aggregator checks platform checksum manifests for both Mac builds and Windows.
+- All Platforms ZIP contains two native DMGs and one native Windows EXE, with checksums.
+- A distinct Actions artifact stores the complete combined ZIP; a second stores direct installers.
+- A GitHub Release publishes direct downloads for users whose browser cannot complete
+  the GitHub Actions artifact redirect download.
+- Existing app/backend/theme functionality is deliberately unchanged.

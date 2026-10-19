@@ -1,4 +1,4 @@
-# HV P2P NMS v26.10.19.02
+# HV P2P NMS v26.10.19.03
 
 GitHub-ready source for the redesigned HV P2P Network Management System.
 
@@ -8,17 +8,17 @@ palette. The current release adds native Windows x64 packaging alongside the
 existing separate Mac builds and fixes a Discovery state regression where an
 identity-only update could override a successful ping status.
 
-## GitHub Actions outputs — three separate native builds
+## GitHub Actions outputs — 3 native builds + all-platform ZIP + permanent release
 
 The workflow at `.github/workflows/build-macos.yml` builds and verifies:
 
 | Job | Native runner | Downloaded artifact | Contents |
 | --- | --- | --- | --- |
-| macOS Apple Silicon | `macos-15` / arm64 | `HV P2P NMS v26.10.19.02 macOS Apple Silicon` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
-| macOS Intel | `macos-15-intel` / x86_64 | `HV P2P NMS v26.10.19.02 macOS Intel` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
-| Windows x64 | `windows-2022` / AMD64 | `HV P2P NMS v26.10.19.02 Windows x64` | Portable standalone `.exe`, zipped `.exe`, SHA-256 |
+| macOS Apple Silicon | `macos-15` / arm64 | `HV P2P NMS v26.10.19.03 macOS Apple Silicon` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
+| macOS Intel | `macos-15-intel` / x86_64 | `HV P2P NMS v26.10.19.03 macOS Intel` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
+| Windows x64 | `windows-2022` / AMD64 | `HV P2P NMS v26.10.19.03 Windows x64` | Portable standalone `.exe`, zipped `.exe`, SHA-256 |
 
-A fourth job runs regression tests on Ubuntu before the platform builds begin.
+Regression tests run on Ubuntu before the native platform builds begin.
 Each platform reruns tests, imports the actual PySide6 UI and runs the compiled
 application's own `--self-test`. Mac builds additionally verify `lipo`-reported
 architecture and ad-hoc bundle signature. Windows checks the executable's PE
@@ -26,14 +26,35 @@ machine type, rejecting anything other than `0x8664` (native AMD64).
 
 ## Upload to GitHub
 
-1. Extract the provided `HV P2P NMS v26.10.19.02 GitHub.zip`.
+1. Extract the provided `HV P2P NMS v26.10.19.03 GitHub.zip`.
 2. Upload **all contents** of the extracted top-level folder, including the
    `.github` directory, to the root of the existing GitHub repository. Replace
    existing files rather than nesting inside another folder.
 3. Commit to `main` or launch **Actions → Build HV P2P NMS - macOS Intel,
    Apple Silicon and Windows → Run workflow**.
-4. Wait for **all four jobs** to pass and download the **three separate build
-   artifacts** from the workflow run.
+4. Wait for the test, three native builds, aggregation and publication jobs to pass.
+5. For the easiest downloads, open the repository **Releases** page. Select
+   **HV P2P NMS v26.10.19.03**, then download **All Platforms.zip** or any
+   of the direct `.dmg` / `.exe` installers. These GitHub Release assets do
+   not require downloading an Actions-artifact ZIP wrapper.
+6. The Actions run still includes the three original platform artifacts,
+   plus **All Platforms** and **Direct Installers** artifacts for redundancy.
+
+The combined ZIP contains `macOS Intel/*.dmg`, `macOS Apple Silicon/*.dmg`,
+`Windows x64/*.exe`, a usage README and a SHA-256 manifest. The aggregation
+step verifies the SHA-256 hashes from every platform build first and refuses
+to publish an incomplete or corrupt combined package. macOS application ZIPs,
+Windows EXE ZIPs and original individual build checksums remain in the three
+individual Actions artifacts. The combined ZIP uses only one installer per
+platform to keep the download smaller.
+
+GitHub Releases are automatically created **once per version** after all three
+builds succeed on a commit to `main` (or a version-tagged build). If a Release
+for the exact version already exists, it is left unchanged rather than silently
+replacing the published binaries. The GitHub Actions workflow must have permission
+to write repository contents/releases; if the repository/org forbids write
+access to `GITHUB_TOKEN`, the Release step may fail even though all compiled
+artifacts and the combined ZIP have been uploaded to Actions.
 
 GitHub Actions executes native builds. No macOS or Windows binaries are
 precompiled in this source ZIP. Windows and macOS distribution packages are
@@ -99,7 +120,7 @@ The Setup page intentionally uses one consolidated settings page. The former Gen
 
 See `DESIGN_LOCK.md` and `design-reference/`. The neutral greys are sampled from the supplied SRVR reference, and the Run/Setup/Discovery layouts are the approved NMS layouts. Do not redesign those screens as part of build maintenance.
 
-## v26.10.19.02 — Windows test/packaging naming hotfix
+## v26.10.19.03 — Windows test/packaging naming hotfix
 
 No UI, networking, scan-mode, discovery, favourite-device or configuration
 behaviour was changed from v26.10.19.01.
@@ -119,3 +140,14 @@ behaviour was changed from v26.10.19.01.
 Native Windows/macOS bundling still requires GitHub Actions to execute the
 three platform-specific builds. An unsigned executable may trigger OS security
 protections depending on local policy.
+
+## v26.10.19.03 — single all-platform download and stable direct release links
+
+No changes to GUI layout, colors, device scanning, discovery, favorites, or
+configuration. This is a distribution-only revision. The three native platform
+build jobs are unchanged. New aggregation verifies platform-specific SHA-256
+manifests, creates an all-platform ZIP with each installer in its own folder,
+and publishes the combined ZIP as a fourth user-facing Actions download.
+A versioned GitHub Release is automatically created with direct individual
+DMG/EXE installers and the combined ZIP to avoid Chrome/GitHub Actions
+artifact download redirects; these links persist beyond artifact retention.
