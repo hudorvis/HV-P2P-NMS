@@ -1,4 +1,4 @@
-name: Build macOS Intel + Apple Silicon
+name: Build HV P2P NMS - macOS Intel, Apple Silicon and Windows
 
 on:
   workflow_dispatch:
@@ -90,6 +90,57 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+  build-windows:
+    name: Windows x64
+    needs: test
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Verify native x64 Windows runner
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+          Write-Host "Windows runner OSArchitecture: $arch"
+          if ($arch -ne 'X64') { throw "Wrong Windows runner architecture: $arch" }
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { throw 'pip upgrade failed' }
+          python -m pip install -r requirements-build.txt
+          if ($LASTEXITCODE -ne 0) { throw 'pip requirements failed' }
+
+      - name: Compile, import UI, and run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          python -m compileall -q src tests run_hv_nms.py scripts/verify_pe_arch.py
+          if ($LASTEXITCODE -ne 0) { throw 'Python compile failed' }
+          python -c "import PySide6; from hv_nms.main_window import MainWindow; print('Windows PySide6 UI import PASS')"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Qt import failed' }
+          python -m pytest tests -q
+          if ($LASTEXITCODE -ne 0) { throw 'Windows tests failed' }
+
+      - name: Build, verify, package Windows x64 EXE
+        run: ./scripts/build_windows.ps1
+
+      - name: Upload compiled Windows build
+        uses: actions/upload-artifact@v6
+        with:
+          name: HV-P2P-NMS-Windows-x64
           path: release/*
           if-no-files-found: error
           retention-days: 30

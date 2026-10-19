@@ -1,4 +1,4 @@
-# Release checklist — v26.09.03.01
+# Release checklist — v26.10.19.01
 
 - [x] Legacy Python source reviewed and core monitoring/discovery/config behaviour mapped.
 - [x] Stable device IDs used instead of row-index result routing.
@@ -29,3 +29,13 @@
 - [x] SOURCE_MANIFEST regression test excludes Git checkout metadata (`.git/`) and passes inside a simulated Git repository.
 
 - [x] DNS resolver status strings (including NXDOMAIN/SERVFAIL/REFUSED) are rejected at parser, resolver and model-write boundaries.
+
+## v26.10.19.01 additions
+
+- [x] Start from the user-uploaded `v26.09.03.01` source archive.
+- [x] Preserve all approved UI source and SRVR neutral greys.
+- [x] Prevent identity-only Discovery updates from downgrading a live ping.
+- [x] Add native Windows x64 PE onefile build and executable/ZIP/checksums.
+- [x] Add Windows runner and tests/self-test to GitHub Actions.
+- [x] Keep separate macOS Apple Silicon and Intel architecture checks and packages.
+- [ ] Confirm GitHub's three platform jobs complete successfully (requires hosted native runners).

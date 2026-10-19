@@ -481,3 +481,23 @@ def test_netbios_node_status_fallback_returns_workstation_name(monkeypatch):
 
     monkeypatch.setattr(network_module.socket, "socket", FakeSocket)
     assert network_module.netbios_node_name("10.0.0.8") == "CAMERA"
+
+
+def test_arp_or_mdns_identity_never_downgrades_successful_ping_status(tmp_path):
+    backend = MonitorBackend(AppSettings(), [], tmp_path / "config.json")
+    try:
+        backend.discovery_active = True
+        backend._discovery_generation = 9
+        dev, created = backend._upsert_discovery(9, "172.20.1.82", source="ping", latency=1.23)
+        assert created and dev.last_seen_status == "ok"
+        assert dev.latency_ms == 1.23
+        for source in ("arp", "mdns", "bonjour", "nmap"):
+            updated, created = backend._upsert_discovery(
+                9, "172.20.1.82", source=source, hostname="camera.local"
+            )
+            assert not created
+            assert updated.device_id == dev.device_id
+            assert updated.last_seen_status == "ok"
+            assert updated.latency_ms == 1.23
+    finally:
+        backend.shutdown()

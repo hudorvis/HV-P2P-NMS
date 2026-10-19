@@ -8,6 +8,7 @@ HV_P2P_NMS.spec
 LEGACY_FUNCTIONALITY.md
 README.md
 SOURCE_MANIFEST.txt
+assets/HV_P2P_NMS.ico
 assets/icon_1024.png
 design-reference/Discovery.png
 design-reference/Run-Scan-Mode.png
@@ -18,7 +19,9 @@ requirements-build.txt
 requirements.txt
 run_hv_nms.py
 scripts/build_macos.sh
+scripts/build_windows.ps1
 scripts/make_icns.sh
+scripts/verify_pe_arch.py
 src/hv_nms/__init__.py
 src/hv_nms/backend.py
 src/hv_nms/config.py

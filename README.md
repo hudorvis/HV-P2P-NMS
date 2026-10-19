@@ -1,33 +1,44 @@
-# HV P2P NMS v26.09.03.01
+# HV P2P NMS v26.10.19.01
 
 GitHub-ready source for the redesigned HV P2P Network Management System.
 
-This revision rebuilds the supplied legacy NMS logic into a PySide6 desktop application while keeping the approved NMS visual design locked. It deliberately builds two native macOS applications rather than relying on Rosetta:
+This release is based on the uploaded `v26.09.03.01` source and preserves the
+approved Run / Setup / Discovery / Log layout and SRVR-sampled charcoal colour
+palette. The current release adds native Windows x64 packaging alongside the
+existing separate Mac builds and fixes a Discovery state regression where an
+identity-only update could override a successful ping status.
 
-- **Apple Silicon / arm64** on GitHub's `macos-15` runner.
-- **Intel / x86_64** on GitHub's `macos-15-intel` runner.
+## GitHub Actions outputs — three separate native builds
 
-The current PySide6 macOS wheel is Universal2 and requires macOS 13 or later, so the application bundle is intentionally configured with `LSMinimumSystemVersion = 13.0`. See `BUILD_DEBUG.md` for the earlier v26.09.01.04 hosted-runner scheduling failure and the macOS CI hardening retained in this revision.
+The workflow at `.github/workflows/build-macos.yml` builds and verifies:
 
-## What GitHub Actions produces
+| Job | Native runner | Downloaded artifact | Contents |
+| --- | --- | --- | --- |
+| macOS Apple Silicon | `macos-15` / arm64 | `HV-P2P-NMS-macOS-Apple-Silicon` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
+| macOS Intel | `macos-15-intel` / x86_64 | `HV-P2P-NMS-macOS-Intel` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
+| Windows x64 | `windows-2022` / AMD64 | `HV-P2P-NMS-Windows-x64` | Portable standalone `.exe`, zipped `.exe`, SHA-256 |
 
-Each successful run creates two Actions artifacts:
+A fourth job runs regression tests on Ubuntu before the platform builds begin.
+Each platform reruns tests, imports the actual PySide6 UI and runs the compiled
+application's own `--self-test`. Mac builds additionally verify `lipo`-reported
+architecture and ad-hoc bundle signature. Windows checks the executable's PE
+machine type, rejecting anything other than `0x8664` (native AMD64).
 
-- `HV-P2P-NMS-macOS-Apple-Silicon`
-- `HV-P2P-NMS-macOS-Intel`
+## Upload to GitHub
 
-Each artifact contains an architecture-specific `.zip`, a `.dmg`, and SHA-256 checksums. The build script verifies the Mach-O architecture with `lipo`, verifies the app bundle with `codesign`, then runs the compiled executable's `--self-test` before packaging it.
+1. Extract the provided `HV_P2P_NMS_v26.10.19.01_GitHub.zip`.
+2. Upload **all contents** of the extracted top-level folder, including the
+   `.github` directory, to the root of the existing GitHub repository. Replace
+   existing files rather than nesting inside another folder.
+3. Commit to `main` or launch **Actions → Build HV P2P NMS - macOS Intel,
+   Apple Silicon and Windows → Run workflow**.
+4. Wait for **all four jobs** to pass and download the **three separate build
+   artifacts** from the workflow run.
 
-## Exact GitHub upload procedure
-
-1. Create an empty GitHub repository.
-2. Upload **the contents of this folder** to the repository root. Do not upload this outer folder as an extra directory level.
-3. Commit to the `main` branch.
-4. Open **Actions** → **Build macOS Intel + Apple Silicon**.
-5. Run the workflow manually, or let the push to `main` start it.
-6. When both macOS jobs are green, download the two artifacts from the workflow run.
-
-The workflow is in `.github/workflows/build-macos.yml`.
+GitHub Actions executes native builds. No macOS or Windows binaries are
+precompiled in this source ZIP. Windows and macOS distribution packages are
+unsigned by a commercial code-signing certificate: macOS uses ad-hoc signing,
+and Windows may show SmartScreen warnings until code-signing is configured.
 
 ## Local development
 
@@ -48,6 +59,13 @@ bash scripts/make_icns.sh
 TARGET_ARCH="$(uname -m)" bash scripts/build_macos.sh
 ```
 
+On Windows PowerShell, a local package build is:
+
+```powershell
+py -3.12 -m pip install -r requirements-build.txt
+./scripts/build_windows.ps1
+```
+
 ## Runtime behaviour
 
 The Scan Mode worker belongs to the application backend, not the Run page, so an active scan keeps running when Setup, Discovery or Log is selected. Discovery has a separate 15-second default cycle and can run concurrently with Scan Mode.
@@ -62,15 +80,16 @@ On macOS, the app bundle declares `NSLocalNetworkUsageDescription` and Bonjour u
 
 There is no standards-compliant way to derive a hostname from an IP address when a device publishes no DNS PTR/mDNS/Bonjour/NetBIOS identity. In that case NMS deliberately leaves Host Name as `—` instead of inventing a value.
 
-Application configuration is stored outside the `.app` bundle under:
+Application configuration is stored outside the installed application:
 
-`~/Library/Application Support/HV P2P NMS/config.json`
+- macOS: `~/Library/Application Support/HV P2P NMS/config.json`
+- Windows: `%APPDATA%\HV P2P NMS\config.json`
 
 The app can still load/export JSON configuration files from arbitrary locations.
 
 ## Signing / Gatekeeper
 
-The GitHub workflow produces an ad-hoc signed application, which is sufficient for architecture and bundle-integrity testing. It is **not Apple Developer ID notarization**. For unrestricted external distribution through Gatekeeper, add Developer ID signing and Apple notarization credentials as a later release step. No certificate or secret is embedded in this repository.
+The GitHub macOS workflow produces an ad-hoc signed application for architecture and bundle-integrity testing. It is **not Apple Developer ID notarization**. The Windows EXE is not Authenticode-signed. For unrestricted external distribution through Gatekeeper, add Developer ID signing and Apple notarization credentials as a later release step. No certificate or secret is embedded in this repository.
 
 ## Setup
 

@@ -9,12 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_release_version_is_consistent_across_build_files():
-    assert APP_VERSION == "v26.09.03.01"
-    assert 'APP_VERSION = "v26.09.03.01"' in (ROOT / "src/hv_nms/__init__.py").read_text()
-    assert 'VERSION="v26.09.03.01"' in (ROOT / "scripts/build_macos.sh").read_text()
+    assert APP_VERSION == "v26.10.19.01"
+    assert 'APP_VERSION = "v26.10.19.01"' in (ROOT / "src/hv_nms/__init__.py").read_text()
+    assert 'VERSION="v26.10.19.01"' in (ROOT / "scripts/build_macos.sh").read_text()
     spec = (ROOT / "HV_P2P_NMS.spec").read_text()
-    assert '"CFBundleShortVersionString": "26.09.03.01"' in spec
-    assert '"CFBundleVersion": "26.09.03.01"' in spec
+    assert '"CFBundleShortVersionString": "26.10.19.01"' in spec
+    assert '"CFBundleVersion": "26.10.19.01"' in spec
 
 
 def test_workflow_builds_native_apple_silicon_and_intel():
@@ -85,3 +85,60 @@ def test_source_manifest_matches_release_tree():
         actual.add(rel.as_posix())
     manifest = {line.strip() for line in (ROOT / 'SOURCE_MANIFEST.txt').read_text().splitlines() if line.strip()}
     assert actual == manifest
+
+
+def test_windows_x64_job_and_distribution_contract():
+    workflow = (ROOT / ".github/workflows/build-macos.yml").read_text()
+    assert "runner: macos-15\n            arch: arm64" in workflow
+    assert "runner: macos-15-intel\n            arch: x86_64" in workflow
+    assert "runs-on: windows-2022" in workflow
+    assert "name: HV-P2P-NMS-Windows-x64" in workflow
+    assert "actions/upload-artifact@v6" in workflow
+    assert "scripts/build_windows.ps1" in workflow
+    assert "python -m pytest tests -q" in workflow
+    win = (ROOT / "scripts/build_windows.ps1").read_text()
+    assert "python -m PyInstaller --noconfirm --clean HV_P2P_NMS.spec" in win
+    assert "python scripts/verify_pe_arch.py $Executable" in win
+    assert "--self-test" in win
+    assert "Compress-Archive" in win
+    spec = (ROOT / "HV_P2P_NMS.spec").read_text()
+    assert 'sys.platform == "darwin"' in spec
+    assert 'sys.platform == "win32"' in spec
+    assert 'icon=str(WIN_ICON)' in spec
+    assert (ROOT / "assets/HV_P2P_NMS.ico").is_file()
+
+
+def test_release_keeps_approved_single_source_of_truth_theme_and_ui_layout():
+    constants = (ROOT / "src/hv_nms/constants.py").read_text()
+    for color in ("#0f1316", "#171d20", "#161c20"):
+        assert color in constants
+    ui = (ROOT / "src/hv_nms/main_window.py").read_text()
+    assert 'self.favourite_tiles = [FavouriteTile(), FavouriteTile(), FavouriteTile()]' in ui
+    assert 'self.status_strip.setFixedHeight(38)' in ui
+    assert 'self._build_run_page()' in ui
+    assert 'self._build_setup_page()' in ui
+    assert 'self._build_discovery_page()' in ui
+    assert 'self._build_log_page()' in ui
+    assert 'setup_side_buttons' not in ui
+
+
+def test_windows_pe_architecture_guard_rejects_wrong_machine(tmp_path):
+    import importlib.util
+    import struct
+    source = ROOT / "scripts/verify_pe_arch.py"
+    spec = importlib.util.spec_from_file_location("verify_pe_arch", source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for machine in (0x8664, 0x14C, 0xAA64):
+        blob = bytearray(128)
+        blob[:2] = b"MZ"
+        struct.pack_into("<I", blob, 0x3C, 0x50)
+        blob[0x50:0x54] = b"PE\x00\x00"
+        struct.pack_into("<H", blob, 0x54, machine)
+        path = tmp_path / "app.exe"
+        path.write_bytes(blob)
+        assert module.machine_type(path) == machine
+    import pytest
+    path.write_bytes(b"not a PE file")
+    with pytest.raises(ValueError):
+        module.machine_type(path)

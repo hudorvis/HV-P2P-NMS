@@ -372,10 +372,12 @@ class MonitorBackend:
             old_source = current.discovery_source
             chosen_source = source if self._source_rank(source) >= self._source_rank(old_source) else old_source
             current.mark_discovered(source=chosen_source, latency=latency, hostname=hostname, mac=mac)
-            if latency is None:
-                # Presence by ARP/nmap without a successful ICMP echo is not an
-                # offline state. It is explicitly Unknown/Ping unavailable.
-                current.last_seen_status = "unknown"
+            if latency is None and current.latency_ms is None:
+                # ARP/mDNS/nmap identity refreshes must never downgrade a
+                # previously successful ping result to Unknown. Keep the last
+                # known ICMP status until the next completed ping sweep.
+                if current.last_seen_status != "fail":
+                    current.last_seen_status = "unknown"
         self.events.put(("discovery_update", current.device_id))
         if is_new:
             self.log("INFO", "DISCOVERY", f"Discovered {hostname or ip} ({ip}) via {source}")
