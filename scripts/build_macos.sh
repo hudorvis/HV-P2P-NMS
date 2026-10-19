@@ -10,7 +10,7 @@ case "$TARGET_ARCH" in
   *) echo "Unsupported TARGET_ARCH=$TARGET_ARCH"; exit 2 ;;
 esac
 
-VERSION="v26.10.19.01"
+VERSION="v26.10.19.02"
 export MACOSX_DEPLOYMENT_TARGET="13.0"
 rm -rf build dist release
 mkdir -p release
@@ -37,8 +37,8 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 # as backend/network code, without creating a visible GUI.
 "$BIN" --self-test
 
-ZIP="release/HV_P2P_NMS_${VERSION}_macOS_${SUFFIX}.zip"
-DMG="release/HV_P2P_NMS_${VERSION}_macOS_${SUFFIX}.dmg"
+ZIP="release/HV P2P NMS ${VERSION} macOS ${SUFFIX}.zip"
+DMG="release/HV P2P NMS ${VERSION} macOS ${SUFFIX}.dmg"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
 # Stage the .app inside a folder so the DMG root contains the application

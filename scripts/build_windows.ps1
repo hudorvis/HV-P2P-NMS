@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
-$Version = 'v26.10.19.01'
+$Version = 'v26.10.19.02'
 if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64) {
     throw 'This build must run on native Windows x64.'
 }
@@ -24,7 +24,7 @@ if ($LASTEXITCODE -ne 0) { throw 'PE architecture check failed' }
 $Process = Start-Process -FilePath $Executable -ArgumentList '--self-test' -Wait -PassThru
 if ($Process.ExitCode -ne 0) { throw "Frozen Windows app self-test failed (exit $($Process.ExitCode))" }
 
-$Stem = "HV_P2P_NMS_${Version}_Windows_x64"
+$Stem = "HV P2P NMS ${Version} Windows x64"
 $OutputExe = Join-Path $Root "release/$Stem.exe"
 $Zip = Join-Path $Root "release/$Stem.zip"
 Copy-Item -LiteralPath $Executable -Destination $OutputExe

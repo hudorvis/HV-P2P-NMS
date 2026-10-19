@@ -1,4 +1,4 @@
-# HV P2P NMS design lock — v26.10.19.01
+# HV P2P NMS design lock — v26.10.19.02
 
 The files in `design-reference/` are the locked visual references for this build. Do not redesign, reflow, recolour or substitute SRVR content unless a future change request explicitly asks for it.
 
@@ -18,9 +18,9 @@ The files in `design-reference/` are the locked visual references for this build
 
 The neutral palette was sampled from the supplied SRVR reference rather than approximated from the earlier NMS concept. Primary panel grey is `#171D20`; surrounding background is `#0F1316`; secondary grey is `#161C20`. Cyan/green/red are reserved for headings and state/health information.
 
-The compiled version string is `v26.10.19.01`; the design-reference images contain earlier concept version labels and are references for layout/appearance only.
+The compiled version string is `v26.10.19.02`; the design-reference images contain earlier concept version labels and are references for layout/appearance only.
 
-## v26.10.19.01 platform-build change
+## v26.10.19.02 platform-build change
 
 The Run / Setup / Discovery / Log UI, three favourite tiles, scan status strip,
 all control sizes/positions, and SRVR-matched colours are unchanged. Adding a

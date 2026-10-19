@@ -54,8 +54,8 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleDisplayName": "HV P2P NMS",
             "CFBundleName": "HV P2P NMS",
-            "CFBundleShortVersionString": "26.10.19.01",
-            "CFBundleVersion": "26.10.19.01",
+            "CFBundleShortVersionString": "26.10.19.02",
+            "CFBundleVersion": "26.10.19.02",
             "LSMinimumSystemVersion": "13.0",
             "NSHighResolutionCapable": True,
             "NSPrincipalClass": "NSApplication",

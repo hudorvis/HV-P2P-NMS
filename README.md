@@ -1,4 +1,4 @@
-# HV P2P NMS v26.10.19.01
+# HV P2P NMS v26.10.19.02
 
 GitHub-ready source for the redesigned HV P2P Network Management System.
 
@@ -14,9 +14,9 @@ The workflow at `.github/workflows/build-macos.yml` builds and verifies:
 
 | Job | Native runner | Downloaded artifact | Contents |
 | --- | --- | --- | --- |
-| macOS Apple Silicon | `macos-15` / arm64 | `HV-P2P-NMS-macOS-Apple-Silicon` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
-| macOS Intel | `macos-15-intel` / x86_64 | `HV-P2P-NMS-macOS-Intel` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
-| Windows x64 | `windows-2022` / AMD64 | `HV-P2P-NMS-Windows-x64` | Portable standalone `.exe`, zipped `.exe`, SHA-256 |
+| macOS Apple Silicon | `macos-15` / arm64 | `HV P2P NMS v26.10.19.02 macOS Apple Silicon` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
+| macOS Intel | `macos-15-intel` / x86_64 | `HV P2P NMS v26.10.19.02 macOS Intel` | Native `.app` as `.zip` and `.dmg`, SHA-256 |
+| Windows x64 | `windows-2022` / AMD64 | `HV P2P NMS v26.10.19.02 Windows x64` | Portable standalone `.exe`, zipped `.exe`, SHA-256 |
 
 A fourth job runs regression tests on Ubuntu before the platform builds begin.
 Each platform reruns tests, imports the actual PySide6 UI and runs the compiled
@@ -26,7 +26,7 @@ machine type, rejecting anything other than `0x8664` (native AMD64).
 
 ## Upload to GitHub
 
-1. Extract the provided `HV_P2P_NMS_v26.10.19.01_GitHub.zip`.
+1. Extract the provided `HV P2P NMS v26.10.19.02 GitHub.zip`.
 2. Upload **all contents** of the extracted top-level folder, including the
    `.github` directory, to the root of the existing GitHub repository. Replace
    existing files rather than nesting inside another folder.
@@ -98,3 +98,24 @@ The Setup page intentionally uses one consolidated settings page. The former Gen
 ## Design lock
 
 See `DESIGN_LOCK.md` and `design-reference/`. The neutral greys are sampled from the supplied SRVR reference, and the Run/Setup/Discovery layouts are the approved NMS layouts. Do not redesign those screens as part of build maintenance.
+
+## v26.10.19.02 — Windows test/packaging naming hotfix
+
+No UI, networking, scan-mode, discovery, favourite-device or configuration
+behaviour was changed from v26.10.19.01.
+
+- Fixed Windows GitHub tests that called `Path.read_text()` without an
+  encoding. Source/test fixtures are UTF-8, but the hosted PowerShell runner
+  used Windows CP1252 and failed with `UnicodeDecodeError` before assertions.
+- Enabled `PYTHONUTF8=1` in the Windows GitHub Actions job as defence in depth.
+- Added regression tests that fail if release-structure tests use implicit
+  text decoding or if the release artifacts regress to underscored names.
+- Release ZIP root directory, ZIP/DMG/EXE filenames and downloadable GitHub
+  artifact names now use the approved `HV P2P NMS vYY.MM.DD.RR` prefix.
+- Internal Python package (`hv_nms`), script paths and icon/spec filenames
+  retain their stable technical identifiers because they are not displayed
+  as application/release names.
+
+Native Windows/macOS bundling still requires GitHub Actions to execute the
+three platform-specific builds. An unsigned executable may trigger OS security
+protections depending on local policy.

@@ -1,4 +1,4 @@
-# Release checklist — v26.10.19.01
+# Release checklist — v26.10.19.02
 
 - [x] Legacy Python source reviewed and core monitoring/discovery/config behaviour mapped.
 - [x] Stable device IDs used instead of row-index result routing.
@@ -30,7 +30,7 @@
 
 - [x] DNS resolver status strings (including NXDOMAIN/SERVFAIL/REFUSED) are rejected at parser, resolver and model-write boundaries.
 
-## v26.10.19.01 additions
+## v26.10.19.02 additions
 
 - [x] Start from the user-uploaded `v26.09.03.01` source archive.
 - [x] Preserve all approved UI source and SRVR neutral greys.
@@ -39,3 +39,11 @@
 - [x] Add Windows runner and tests/self-test to GitHub Actions.
 - [x] Keep separate macOS Apple Silicon and Intel architecture checks and packages.
 - [ ] Confirm GitHub's three platform jobs complete successfully (requires hosted native runners).
+
+## v26.10.19.02 fixes
+
+- [x] UTF-8 explicit source reads in the release-structure tests.
+- [x] Windows job sets `PYTHONUTF8=1` to avoid CP1252 defaults.
+- [x] Spaced user-facing release package, extracted directory and GitHub artifact names.
+- [x] Scan/discovery/favourites/layout functional sources remain unmodified.
+- [ ] GitHub native runners build/install/launch Windows, Intel and Apple Silicon executables.
